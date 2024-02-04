@@ -30,7 +30,7 @@ _Affiliations:_
 
   
 #### Abstract
-The objectives of this study are to analyse and compare the community composition and diversity of planktonic marine microalgae in a latitudinal gradient spanning the tropical to polar ecoregions in the South Pacific. This was achieved using eDNA samples and multi-region small subunit rDNA metabarcoding. Our focus was to identify similarities and differences at the functional group level across a large latitudinal gradient and assess diversity.
+The objectives of this study are to analyse and compare the community composition and diversity of planktonic marine microalgae in a latitudinal gradient spanning the tropical to polar ecoregions in the South Pacific. This was achieved using eDNA samples and multi-region small subunit rDNA metabarcoding. Our focus was to identify similarities and differences at the high-level taxonomic groups across a large latitudinal gradient and assess diversity.
 
 Samples were collected from sites in tropical, sub-tropical, and temperate ecoregions. All sites were coastal or near shore, without significant rainfall 2-3 days before sampling. All samples from the tropical, sub-tropical and temperate sites were collected in spring, with tropical collected in the spring of 2022 between 28th November – 30th November, sub-tropical and temperate samples collected between 20th October – 29th November 2021, and polar samples were between 10th October to 24th November, respectively. sampling in the polar and sub-polar regions was undertaken in the summer of 2023, and polar sites were sampled via holes in the sea ice, with an additional five open water polar site samples during the National Institute of Water and Atmospheric Research (NIWA) 2023 Tangaroa voyage to the Ross Sea.
 
