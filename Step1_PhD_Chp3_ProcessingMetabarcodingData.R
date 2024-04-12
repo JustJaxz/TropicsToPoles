@@ -2,8 +2,8 @@
 #--- Cutadapt & Dada2 Pipeline for metabarcoding data ---#
 #--------------------------------------------------------#
 
-# Code from John Pearman (john.pearman@cawthron.org.nz)
-# Altered by Jacqui Stuart for Small sub-unit (SSU) v9 data-set (jacqui.stuart@cawthron.org.nz)
+# Code from Pearman J (john.pearman@cawthron.org.nz)
+# Altered by Stuart J for Small sub-unit (SSU) v9 data-set (jacqui.stuart@cawthron.org.nz)
 
 # Date: 2023.05.29
 # Primer pair: ill-1380F and ill-1510R
@@ -13,14 +13,13 @@
 #------------------------------------------------------------------------------------------------------------------------------#
 
 # Paper title: Tropics to the poles: Diversity and composition of coastal eukaryotic marine microalgae communities across five ecoregions.
-# Paper authors: Jacqui Stuart (1,2), Ken Ryan (1), Natalie Robinson (4), Svenja Halfter (4), Craig Stewart (4), John K. Pearman (1), 
-# Jacob Thomson-Laing (2), Kirsty F. Smith (2,3)
+# Paper authors: Jacqui Stuart (1,2), Ken Ryan (1), Natalie Robinson (3), Svenja Halfter (3), John K. Pearman (1), 
+# Jacob Thomson-Laing (2), Kirsty F. Smith (2)
 
 # Affiliations:
 # 1.	School of Biological Sciences, Victoria University of Wellington, PO Box 600, Wellington 6140, New Zealand. 
 # 2.	Cawthron Institute, Private Bag 2, Nelson 7042, New Zealand. 
-# 3.	School of Biological Sciences, University of Auckland, Private Bag 92019, Auckland 1142, New Zealand.
-# 4.	National Institute of Water and Atmospheric Research (NIWA), Private Bag 14901, Kilbirnie, Wellington 6241
+# 3.	National Institute of Water and Atmospheric Research (NIWA), Private Bag 14901, Kilbirnie, Wellington 6241
 
 ## Sequence Pipeline
 
