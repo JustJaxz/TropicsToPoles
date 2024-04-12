@@ -64,8 +64,8 @@ library("dplyr")
 
 # Set working directory
 ### CHANGE ME ### This will be unique to your project, make sure it is correct
-setwd("C:/Users/jacquis/Documents/CAW-22-11") # Sequence files 1
-#setwd("C:/Users/jacquis/Documents/CAW-23-21") # Sequence files 2
+setwd("C:/Users/user/Documents/CAW-22-11") # Sequence files 1
+#setwd("C:/Users/user/Documents/CAW-23-21") # Sequence files 2
 
 
 #--------------------#
@@ -81,14 +81,14 @@ setwd("C:/Users/jacquis/Documents/CAW-22-11") # Sequence files 1
 
 ###CHANGE ME###
 # STEP 1: Set source destination - this needs to be the folder all the files and folders are nested in
-source_folder <- "C:/Users/jacquis/Documents/CAW-22-11/v9" # Sequence files 1
-#source_folder <- "C:/Users/jacquis/Documents/CAW-23-21/v9" # Sequence files 2
+source_folder <- "C:/Users/user/Documents/CAW-22-11/v9" # Sequence files 1
+#source_folder <- "C:/Users/user/Documents/CAW-23-21/v9" # Sequence files 2
 
 # STEP 2: Make and Set destination folder - This is the folder you want all the '.fastq' files to end up in
 seq_folder_name <- "sequence-files"
 dir.create(seq_folder_name)
-destination_folder <- "C:/Users/jacquis/Documents/CAW-22-11/sequence-files"
-#destination_folder <- "C:/Users/jacquis/Documents/CAW-23-21/sequence-files"
+destination_folder <- "C:/Users/user/Documents/CAW-22-11/sequence-files"
+#destination_folder <- "C:/Users/user/Documents/CAW-23-21/sequence-files"
 
 # STEP 3: Get list of files in source folder and subfolders:
 file_list <- list.files(source_folder, recursive = TRUE, full.names = TRUE)
@@ -132,7 +132,7 @@ for (subdir in subdirs) {
 
 #--- Check files ---#
 ### CHANGE ME ### This will direct R to your sequence data in your new 'destination_folder', make sure it is correct
-path <- "C:/Users/jacquis/Documents/CAW-22-11/sequence-files"
+path <- "C:/Users/user/Documents/CAW-22-11/sequence-files"
 list.files(path)
 
 # List names of forward and reverse reads
@@ -192,7 +192,7 @@ rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs[[1]]),
 
 ### CHANGE ME ### 
 # Please change the following file path to the cutadapt path on your machine
-cutadapt <- "C:/Users/jacquis/Miniconda3/Scripts/cutadapt" 
+cutadapt <- "C:/Users/user/Miniconda3/Scripts/cutadapt" 
 
 # Run shell commands from R
 system2(cutadapt, args = "--version") 
@@ -264,7 +264,7 @@ dir.create(folder_name)
 
 # generate dynamic file name to track iterations
 current_datetime <- format(Sys.time(), "%Y-%m-%d_%H-%M")
-file_name_stop1 <- paste0("C:/Users/jacquis/Documents/CAW-22-11.1/workspace_environments/",current_datetime,"_CAW-22-11.1_stop1", ".RData")
+file_name_stop1 <- paste0("C:/Users/user/Documents/CAW-22-11.1/workspace_environments/",current_datetime,"_CAW-22-11.1_stop1", ".RData")
 
 # save workspace environment
 save.image(file = file_name_stop1)
@@ -279,7 +279,7 @@ save.image(file = file_name_stop1)
 #--- LOAD WORKSPACE ENVIRONMENT ---#
 ### CHANGE ME ###
 # Make sure you update this file link as you save out your stop point files.
-#load("C:/Users/jacquis/Documents/CAW-22-11.1/workspace_environments/2023-05-29_14-38_CAW-22-11.1_stop1.RData")
+#load("C:/Users/user/Documents/CAW-22-11.1/workspace_environments/2023-05-29_14-38_CAW-22-11.1_stop1.RData")
 
 
 
@@ -329,7 +329,7 @@ rev_qual_plots
 #generate dynamic file name to track iterations
 current_datetime <- format(Sys.time(), "%Y-%m-%d_%H-%M") # This tags the date and time into the generated file
 #This creates a file name with the date and time tag for this stop point
-file_name_stop2 <- paste0("C:/Users/jacquis/Documents/CAW-22-11.1/workspace_environments/",current_datetime,"_CAW-22-11.1_stop2", ".RData")
+file_name_stop2 <- paste0("C:/Users/user/Documents/CAW-22-11.1/workspace_environments/",current_datetime,"_CAW-22-11.1_stop2", ".RData")
 #saves work space environment
 save.image(file = file_name_stop2)
 
@@ -342,7 +342,7 @@ save.image(file = file_name_stop2)
 ### CHANGE ME ###
 # Make sure you update this file link as you save out your stop point files.
 
-#load("C:/Users/jacquis/Documents/CAW-22-11.1/workspace_environments/2023-05-29_15-28_CAW-22-11.1_stop2")
+#load("C:/Users/user/Documents/CAW-22-11.1/workspace_environments/2023-05-29_15-28_CAW-22-11.1_stop2")
 #--- Filtering and trimming ---#
 
 filtpathF <- file.path(path.cut, "filtered", basename(cutFs))
@@ -396,7 +396,7 @@ errR_plot
 
 #generate dynamic file name to track iterations
 current_datetime <- format(Sys.time(), "%Y-%m-%d_%H-%M")
-file_name_stop3 <- paste0("C:/Users/jacquis/Documents/CAW-22-11.1/workspace_environments/",current_datetime,"_CAW-22-11.1_stop3", ".RData")
+file_name_stop3 <- paste0("C:/Users/user/Documents/CAW-22-11.1/workspace_environments/",current_datetime,"_CAW-22-11.1_stop3", ".RData")
 
 #save workspace environment
 save.image(file = file_name_stop3)
@@ -411,7 +411,7 @@ save.image(file = file_name_stop3)
 ### CHANGE ME ###
 # Make sure you update this file link as you save out your stop point files.
 
-#load("C:/Users/jacquis/Documents/CAW-22-11.1/workspace_environments/2023-05-29_17-51_CAW-22-11.1_stop3.RData")
+#load("C:/Users/user/Documents/CAW-22-11.1/workspace_environments/2023-05-29_17-51_CAW-22-11.1_stop3.RData")
 
 
 #----- Chimera removal -----#
@@ -426,7 +426,7 @@ derepR <- derepFastq(filtpathR, verbose=TRUE)
 #--- This is just to ensure saving of those longer processes, as sometimes the computer crashes after this point.
 #generate dynamic file name to track iterations
 current_datetime <- format(Sys.time(), "%Y-%m-%d_%H-%M")
-file_name_stop3_checkpoint <- paste0("C:/Users/jacquis/Documents/CAW-22-11.1/workspace_environments/",current_datetime,"_CAW-22-11.1_stop3-checkpoint", ".RData")
+file_name_stop3_checkpoint <- paste0("C:/Users/user/Documents/CAW-22-11.1/workspace_environments/",current_datetime,"_CAW-22-11.1_stop3-checkpoint", ".RData")
 
 #save workspace environment
 save.image(file = file_name_stop3_checkpoint)
@@ -492,7 +492,7 @@ seqtab.nochim <- removeBimeraDenovo(seqtab, multithread=TRUE, verbose=TRUE)
 ### CHANGE ME ###
 # make sure I match your file path to your working folder for this project
 # You are saving a copy of the chimera free sequence table to your working directory
-saveRDS(seqtab.nochim, "C:/Users/jacquis/Documents/CAW-22-11.1/CAW-22-11.1_jacqui_v9_seqtab.nochim.rds")
+saveRDS(seqtab.nochim, "C:/Users/user/Documents/CAW-22-11.1/CAW-22-11.1_jacqui_v9_seqtab.nochim.rds")
 
 
 ### At this point, if you are not doing your own taxonomy files, send the .rds file to John.
@@ -505,7 +505,7 @@ saveRDS(seqtab.nochim, "C:/Users/jacquis/Documents/CAW-22-11.1/CAW-22-11.1_jacqu
 
 #generate dynamic file name to track iterations
 current_datetime <- format(Sys.time(), "%Y-%m-%d_%H-%M")
-file_name_stop4 <- paste0("C:/Users/jacquis/Documents/CAW-22-11.1/workspace_environments/",current_datetime,"_CAW-22-11.1_stop4", ".RData")
+file_name_stop4 <- paste0("C:/Users/user/Documents/CAW-22-11.1/workspace_environments/",current_datetime,"_CAW-22-11.1_stop4", ".RData")
 
 #save workspace environment
 save.image(file = file_name_stop4)
@@ -520,7 +520,7 @@ save.image(file = file_name_stop4)
 # Next step after this is taxonomy
 
 #--- Set working directory ---#
-setwd("C:/Users/jacquis/Documents/R")
+setwd("C:/Users/user/Documents/R")
 
 #--- Read in seqtab files ---#
 # Here I am defining the name of each data table `seqtab.nochim.file.name` 
@@ -528,12 +528,12 @@ setwd("C:/Users/jacquis/Documents/R")
 # make sure to change the file path to match where your files are!
 
 # v9 region sequence tables
-seqtab.nochim.CAW.22.11 <- readRDS("C:/Users/jacquis/Documents/R/CAW-22-11_jacqui_v9_seqtab.nochim.rds")
-seqtab.nochim.CAW.23.21 <- readRDS("C:/Users/jacquis/Documents/R/CAW-23-21_jacqui_v9_seqtab.nochim.rds")
+seqtab.nochim.CAW.22.11 <- readRDS("C:/Users/user/Documents/R/CAW-22-11_jacqui_v9_seqtab.nochim.rds")
+seqtab.nochim.CAW.23.21 <- readRDS("C:/Users/user/Documents/R/CAW-23-21_jacqui_v9_seqtab.nochim.rds")
 
 # v4 region sequence tables
-seqtab.nochim.CAW.22.12 <- readRDS("C:/Users/jacquis/Documents/R/CAW-22-12_jacqui_v4_seqtab.nochim.rds")
-seqtab.nochim.CAW.23.22 <- readRDS("C:/Users/jacquis/Documents/R/CAW-23-22_jacqui_v4_seqtab.nochim.rds")
+seqtab.nochim.CAW.22.12 <- readRDS("C:/Users/user/Documents/R/CAW-22-12_jacqui_v4_seqtab.nochim.rds")
+seqtab.nochim.CAW.23.22 <- readRDS("C:/Users/user/Documents/R/CAW-23-22_jacqui_v4_seqtab.nochim.rds")
 
 #----------------------------#
 ##### Merge seqtab files #####
@@ -554,8 +554,8 @@ v4.seqtab.merge <- mergeSequenceTables(tables = v4_tables)
 rownames(v4.seqtab.merge)
 
 # Save `.rds` file of each merged table to working directory
-saveRDS(v9.seqtab.merge, "C:/Users/jacquis/Documents/R/2023-06-01_jacqui_v9_merged-seqtab.nochim.rds")
-saveRDS(v4.seqtab.merge, "C:/Users/jacquis/Documents/R/2023-06-01_jacqui_v4_merged-seqtab.nochim.rds")
+saveRDS(v9.seqtab.merge, "C:/Users/user/Documents/R/2023-06-01_jacqui_v9_merged-seqtab.nochim.rds")
+saveRDS(v4.seqtab.merge, "C:/Users/user/Documents/R/2023-06-01_jacqui_v4_merged-seqtab.nochim.rds")
 
 # Now you should have a new merged sequence table in your working directory, or the filepath you defined above
 # Woohoo, all done.
@@ -573,19 +573,19 @@ saveRDS(v4.seqtab.merge, "C:/Users/jacquis/Documents/R/2023-06-01_jacqui_v4_merg
 
 #--- v9 ---#
 # read in `seqtab.nochim` file from your working directory
-v9.seqtab.merge <- readRDS("C:/Users/jacquis/Documents/R/2023-06-01_jacqui_v9_merged-seqtab.nochim.rds")
+v9.seqtab.merge <- readRDS("C:/Users/user/Documents/R/2023-06-01_jacqui_v9_merged-seqtab.nochim.rds")
 #read in metadata .csv file
-v9.metadata <- read.csv("C:/Users/jacquis/Documents/R/JSPhd_sample-metadata.csv", header = TRUE, row.names = 1)
+v9.metadata <- read.csv("C:/Users/user/Documents/R/JSPhd_sample-metadata.csv", header = TRUE, row.names = 1)
 # read in taxonomy .rds file
-v9.taxonomy <- readRDS("C:/Users/jacquis/Documents/R/v9.taxonomy.v5.rds")
+v9.taxonomy <- readRDS("C:/Users/user/Documents/R/v9.taxonomy.v5.rds")
 
 #--- v4 ---#
 # read in `seqtab.nochim` file from your working directory
-v4.seqtab.merge <- readRDS("C:/Users/jacquis/Documents/R/2023-06-01_jacqui_v4_merged-seqtab.nochim.rds")
+v4.seqtab.merge <- readRDS("C:/Users/user/Documents/R/2023-06-01_jacqui_v4_merged-seqtab.nochim.rds")
 #read in metadata .csv file
-v4.metadata <- read.csv("C:/Users/jacquis/Documents/R/JSPhd_sample-metadata.csv", header = TRUE, row.names = 1)
+v4.metadata <- read.csv("C:/Users/user/Documents/R/JSPhd_sample-metadata.csv", header = TRUE, row.names = 1)
 # read in taxonomy .rds file
-v4.taxonomy <- readRDS("C:/Users/jacquis/Documents/R/v4.taxonomy.v5.rds")
+v4.taxonomy <- readRDS("C:/Users/user/Documents/R/v4.taxonomy.v5.rds")
 
 #--- Rename row names ---#
 # rename `seqtab.nochim` rows - NOTE there is a way to just get row-names from the metadata file, commented out below.
@@ -726,7 +726,7 @@ control.rem.sums
 
 #--- Save files ---#
 #Saving clean data set to working directory
-saveRDS(v9.cleaned,"C:/Users/jacquis/Documents/R/v9_cleaned.rds")
+saveRDS(v9.cleaned,"C:/Users/user/Documents/R/v9_cleaned.rds")
 
 
 #------------------------------------------------------------------------------------------------------------------------------------------------#
