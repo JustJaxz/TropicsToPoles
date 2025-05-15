@@ -59,8 +59,20 @@ The community composition of the EMC was divided into taxon-based functional gro
 
 
 ## R Requirements
+The Packages used in these pipelines are as follows.
+- Data wrangling: `tidyverse`, `dplyr`, `data.table`, `readr`, `tibble`
+- Metabarcoding processing: `phyloseq`, `vegan`, `picante`, `indicspecies`, `ape`
+- Plotting & visualisation: `ggplot2`, `ggpubr`, `RColorBrewer`, `viridis`
+- Multivariate stats: `vegan`, `betapart`, `adespatial`, `ecodist`
+- Assembly processes: `picante`, `iCAMP`, `Hmisc`, `zCompositions`, `compositions`
+- Others: `knitr`, `rmarkdown`, `here`, `devtools`, `cowplot`, `patchwork`
 
+```{r}
+install.packages(c("tidyverse", "phyloseq", "vegan", "picante", "indicspecies", 
+                   "ggplot2", "pheatmap", "data.table", "cowplot", "patchwork"))
+```
 
+Some packages like `iCamp` require `devtools::install_github("Li-Chia-Yu/iCAMP")`. This is specified in the actual scipt files.
 
 
   
