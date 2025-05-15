@@ -33,7 +33,7 @@ Samples were collected from sites in tropical, sub-tropical, and temperate ecore
 <table align="center" border="0">
   <tr>
     <td width="10%"></td>
-    <td width="40%">
+    <td width="60%">
       <img src="images/figure3.jpg"/>
       <br></br>
       <sub>
@@ -49,17 +49,35 @@ The community composition of the EMC was divided into taxon-based functional gro
 ## Script Files  
 
 - **Scripts:** R scripts used to process raw metabarcoding files, assign taxonomy, assess microalgal community composition, assembly processes and indicator species across five ecoregions.
-  - `Step1_PhD_Chp3_ProcessingMetabarcodingData`: This R script delineates a comprehensive metabarcoding data processing workflow, encompassing library installation, data organization, primer analysis, Cutadapt-based trimming, *DADA2* quality checks, filtering, and chimera removal. Utilising checkpoints ensures adaptability in handling interruptions or errors. Subsequently, the script navigates through pivotal steps: "Merging seqtab files," which consolidates tables from various sequencing runs based on gene region (v9), and saves them as .rds files. The "Taxonomy" section processes merged tables, metadata, and taxonomy files, crafting phyloseq objects. Addressing contamination, the "Subtracting negative controls" segment deducts sequences from negative controls, adjusting the main data accordingly. The script then eliminates zero samples, creating a new phyloseq object without negative controls. Concluding with a comparison of count sums, the script saves the cleaned dataset as .rds and tracks removed sequences in a CSV. It culminates by emphasizing the preparedness of the cleaned data for community and diversity analysis.
+  - `Step1_PhD_Chp3_ProcessingMetabarcodingData`: This R script implements a full metabarcoding workflow, from data setup and quality filtering with DADA2 to merging seqtab files, taxonomy assignment, contamination correction using negative controls, and final dataset cleaning—saving outputs for downstream community and diversity analysis.
   - `Step2_PhD_Chp3_DataAnalysis_CommunityComp_and_Diversity`: 
   - `Step3_PhD_Chp3_DataAnalysis_AssemblyProcess_forGitHub`: 
 
-
 ## Metadata Examples
+Below are examples of the types of files and metadata file layouts required for each analysis script:
+1. Metabarcoding files
+   - File type: `.fastq.gz`
+   - Description: this is is a text format that stores raw sequencing reads, including the nucleotide sequences and corresponding per-base quality scores.
 
+2. Taxonomy files
+   - File type '.RDS'
+   - Description: An RDS taxonomy file in R stores assigned taxonomic classifications (e.g., Kingdom to Species) for each sequence variant, typically output from tools like DADA2.
 
+3. Metadata
+   - File type: .csv
+   - Description: These files are for all the associated data you have related to your samples. This can include `siteID`, `samplingDate`, `sampleID`and other relevant physical site data like temperature, salinity etc.
+![Example of .csv metadatadata layout](images/sequence-metadata-example.png)   
+
+4. Primer sequences
+   - This is not a file, but during the trimming and cleaning step you will need to know the primer sequences you used to remove these from the resulting sequences. In this study we used:
+   ```{r Primer sequences}
+   FWD <- "CCCTGCCHTTTGTACACAC" #FORWARD: 1380F v9
+   REV <- "CCTTCYGCAGGTTCACCTAC" #REVERSE: 1510R v9
+   ```  
 
 ## R Requirements
 The Packages used in these pipelines are as follows.
+- Sequence prep and taxonomu: `phyloseq`, `ggplot2`, `ShortRead`, `Biostrings`, `dada2`, `dplyr`
 - Data wrangling: `tidyverse`, `dplyr`, `data.table`, `readr`, `tibble`
 - Metabarcoding processing: `phyloseq`, `vegan`, `picante`, `indicspecies`, `ape`
 - Plotting & visualisation: `ggplot2`, `ggpubr`, `RColorBrewer`, `viridis`
