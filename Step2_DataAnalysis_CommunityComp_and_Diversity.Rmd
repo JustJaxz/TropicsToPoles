@@ -1,0 +1,2234 @@
+---
+title: "Metabarcoding Pipeline"
+subtitle: "Tropics to Poles: A Snapshot of Coastal Eukaryotic Marine Microalgae Communities Across Five Ecoregions."
+author: "JustJaxz"
+date: "2025-05-12"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Setup {.tabset .tabset-fade}
+### Installing & Loading Packages
+#### Installing & Loading Packages
+
+In this section, we're setting up the R environment for our analysis.
+We are installing or loading the necessary R packages.
+It is essential to make sure that these packages are available in your R environment 
+before proceeding with the analysis. If you already have these packages installed, 
+you can skip the installation process, which can be time-consuming.
+
+The packages here are required for the entire analysis pipeline. a brief description of each follows: 
+  
+=== Package Management ===  
+* `devtools`: Useful for installing R packages from GitHub. More info [here](https://www.r-project.org/nosvn/pandoc/devtools.html)  
+* `BiocManager`: Installs Bioconductor packages (like `phyloseq`). More info [here](https://bioconductor.org/packages/release/bioc/html/BiocManager.html)  
+  
+=== Data Handling and Manipulation ===  
+* `dplyr`: A grammar of data manipulation, part of the tidyverse. More info [here](https://cran.r-project.org/web/packages/dplyr/index.html)  
+* `data.table`: High-performance data manipulation and aggregation. More info [here](https://rdatatable.gitlab.io/data.table/)  
+* `tibble`: Modern rethinking of data frames, improves printing and usability. More info [here](https://tibble.tidyverse.org/)  
+* `tidyr`: Helps create tidy data for analysis. More info [here](https://tidyr.tidyverse.org/)  
+* `stringr`: Consistent, simple string manipulation. More info [here](https://stringr.tidyverse.org/)  
+* `here`: Simplifies file paths using relative project roots. More info [here](https://here.r-lib.org/)
+
+=== Ecological and Statistical Analysis ===  
+* `vegan`: Tools for community ecology (e.g., diversity, ordination). More info [here](https://rdrr.io/cran/vegan/man/vegan-package.html)  
+* `indicspecies`: Identifies indicator species for groups or conditions. More info [here](https://cran.r-project.org/web/packages/indicspecies/index.html)  
+* `caret`: Comprehensive machine learning package with training, tuning, and resampling tools. More info [here](https://topepo.github.io/caret/)  
+* `lares`: General-purpose data science functions including correlation and feature engineering. More info [here](https://cran.r-project.org/web/packages/lares/index.html)  
+  
+=== Phylogenetics and Metabarcoding ===  
+* `ape`: Tools for phylogenetic and evolutionary analyses. More info [here](https://cran.r-project.org/web/packages/ape/index.html)  
+* `phyloseq`: Classes and tools for microbiome/metabarcoding data analysis. More info [here](https://github.com/joey711/phyloseq)  
+* `ranacapa`: Analyzes eDNA data with functions for taxonomy and diversity. More info [here](https://github.com/gauravsk/ranacapa)
+
+ === Visualization ===  
+ * `ggplot2`: Widely used for elegant and flexible data visualization. More info [here](https://ggplot2.tidyverse.org/)  
+ * `ggrepel`: Prevents overlapping text labels in ggplot2 plots. More info [here](https://ggrepel.slowkow.com/)  
+ * `ggVennDiagram`: Draws Venn diagrams using ggplot2. More info [here](https://r-charts.com/part-whole/ggvenndiagram/)  
+ * `ggpubr`: Enhances ggplot2 with publication-ready themes and layouts. More info [here](https://rpkgs.datanovia.com/ggpubr/)  
+ *`ggcorrplot`: Visualizes correlation matrices via ggplot2. More info [here](https://rpkgs.datanovia.com/ggcorrplot/)  
+ *`gridExtra`: Arranges multiple ggplot2 plots into grid layouts. More info [here](https://cran.r-project.org/web/packages/gridExtra/index.html)
+
+
+```{r, LoadPackages, message=FALSE}
+#install.packages("devtools")
+#library(devtools)devtools::install_github("gauravsk/ranacapa")
+#if(!requireNamespace("BiocManager")){
+ # install.packages("BiocManager")
+#}
+#BiocManager::install("phyloseq")
+#install.packages("ggplot2")
+#install.packages("vegan")
+#install.packages("dplyr")
+#install.packages("ggVennDiagram")
+#install.packages("ggrepel")
+#install.packages("ggpubr")
+#install.packages("ape")
+#install.packages("here")
+
+library(here)
+library(phyloseq)
+library(vegan)
+
+library(ape)
+library(ggpubr)
+library(ranacapa)
+library(ggplot2)
+library(dplyr)
+
+# Venn Diagram
+library(ggVennDiagram)
+library(tidyverse)
+
+#Indicator Species
+library(indicspecies)
+library(data.table)
+library(tibble)
+
+# dbRDA
+library(ggcorrplot)
+library(lares)
+library(stringr)
+library(ggpubr)
+library(gridExtra)
+library(tidyr)
+library(caret)
+library(tibble)
+```
+
+
+
+### Data Prep  
+#### Set up directory
+We are using the package `here`, this should mean that where-ever you are accessing this file from will become the working directory. To double check where that is, use the `here()` to confirm the project root. Please ensure you have a sub-directory called `_data` that includes your `.rds` (sequence and taxonomy data) and `.csv` (sample and site metadata) files.
+
+```{r setwd}
+#Check root directory
+here()
+
+# Create a new folder inside the working directory
+suppressWarnings(dir.create(here::here("_exports"), showWarnings = FALSE, recursive = TRUE))
+
+# Create a new folder inside the working directory
+suppressWarnings(dir.create(here::here("_plots"), showWarnings = FALSE, recursive = TRUE))
+```
+#### Load Data
+Start by loading data for this script. Here we use sequence data for the 18s V9 gene regions. This data has already been run through the DADA2 pipeline and undergone chimera removal, trimming, cleaning etc. you can find the script for this initial step [here](https://github.com/JustJaxz/TropicsToPoles/edit/main/Step1_ProcessingMetabarcodingData.R). Once your raw sequence data has been run through that first step, it is now ready for general analysis.  
+Here we will be assessing the diversity and community composition for this data, and the presence across ecoregions of microalgae taxa.  
+* First we load data from an `.rds` file `v9.clean.chp3` and assign the name `waterSamples_filtered`. This is all your sequence and taxonomy data.  
+* Second we read in the `.csv` file `tropics-to-poles_siteData` and assign the name `site data`. This contains site co-ordinates, temperature, distance from shore and other data associated with each site.  
+
+```{r loadData}
+# Load in data, this has been pre filtered to only the samples relevant for this project.
+# NOTE: Make sure your data is in a sub-directory called `_data`
+waterSamples_filtered <- readRDS(here("_data", "v9.clean.chp3.rds"))
+
+# Associated data for each site, this is not used until the dbRDA analysis
+siteData <- read.csv(file = c("tropics-to-poles_siteData.csv"))
+```
+
+The following code filters the taxa in the `waterSamples_filtered` object by removeing taxa with a total sum of values less than or equal to 0, effectively eliminating taxa with minimal or no abundance in the data set. We then create the data frame `taxa.df` from the taxonomic information in `waterSamples_filtered`, allowing us to view what taxa are in the phyloseq object.
+
+```{r clean}
+waterSamples_filtered <- phyloseq::filter_taxa(waterSamples_filtered, function(x) sum(x) > 0, TRUE)
+taxa.df <- data.frame(phyloseq::tax_table(waterSamples_filtered))
+```
+
+***  
+#### Define values  
+Here we define the relevant ecoregion, site and taxonomic values used for our analysis.    
+__Site and region Details__  
+
+```{r siteDetails}
+# Ecoregions
+ecoregion_categories <- c("Tropical", "Sub-tropical", "Temperate", "Sub-polar", "Polar")
+# Site Labels
+sitelabels <- c("N1", "N2", "N3", "N4", "N5", "N6", "T1", "T2", "T3", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "C1", "C2", "C3" )  
+
+# Define the corresponding sites for each ecoregion
+tropical_sites <- c("T1", "T2", "T3")
+subtropical_sites <- c("N4", "N5", "N6")
+temperate_sites <- c("N1", "N2", "N3")
+subpolar_sites <- c("C1", "C2", "C3")
+polar_sites <- c("P5", "P6", "P7", "P8", "P9", "P10", "P11")
+
+# Define the specific site order from tropics to poles, used for plotting
+site_order <- c("T1", "T2", "T3", "N4", "N5", "N6", "N1", "N2", "N3", "C1", "C2", "C3", "P7", "P8", "P9", "P10", "P11", "P5", "P6")
+
+```
+  
+***  
+  
+__Taxonomy details__  
+  
+```{r taxoDivisions}
+# Taxonomy Divisions for tax_tables
+taxo.divisions <- c("Domain", "Supergroup", "Division", "Sub-division", "Class", "Order", "Family", "Genus", "Species")
+
+# EMC Taxonomic groups (to class level)
+emc.classes <- c("Dinophyceae", "Bacillariophyceae", "Coscinodiscophyceae", "Mediophyceae", "Chlorodendrophyceae", "Chlorophyceae", "Chloropicophyceae", "Mamiellophyceae", "Nephroselmidophyceae", "Trebouxiophyceae", "Pedinophyceae", "Picocystophyceae", "Prasinophyceae", "Pyramimonadophyceae", "Coccolithophyceae", "Prymnesiophyceae", "Pavlovophyceae", "Rappephyceae", "Bolidophyceae", "Chrysophyceae", "Dictyochophyceae", "Eustigmatophyceae", "Pinguiophyceae", "Pelagophyceae", "Raphidophyceae", "Synchromophyceae", "Euglenida")
+
+# EMC Taxonomic subsets
+dinoflagellates <- c("Dinophyceae")
+diatoms <- c("Bacillariophyceae", "Coscinodiscophyceae", "Mediophyceae")
+chlorophytes <- c("Chlorodendrophyceae", "Chlorophyceae", "Chloropicophyceae", "Mamiellophyceae", "Nephroselmidophyceae", "Trebouxiophyceae", "Pedinophyceae", "Picocystophyceae", "Prasinophyceae", "Pyramimonadophyceae")
+haptophytes <- c("Coccolithophyceae", "Prymnesiophyceae", "Pavlovophyceae", "Rappephyceae")
+other <- c("Bolidophyceae", "Chrysophyceae", "Dictyochophyceae", "Eustigmatophyceae", "Pinguiophyceae", "Pelagophyceae", "Raphidophyceae", "Synchromophyceae", "Euglenida")  
+
+# EMC class groupings, used with  ASV percent per site function
+class_groupings <- list(
+  dinoflagellates = c("Dinophyceae"),
+  diatoms = c("Bacillariophyceae", "Coscinodiscophyceae", "Mediophyceae"),
+  chlorophytes = c("Chlorodendrophyceae", "Chlorophyceae", "Chloropicophyceae", "Mamiellophyceae", "Nephroselmidophyceae", "Pedinophyceae", "Trebouxiophyceae", "Pedinophyceae", "Picocystophyceae", "Prasinophyceae", "Pyramimonadophyceae"),
+  haptophytes = c("Coccolithophyceae", "Prymnesiophyceae", "Pavlovophyceae", "Rappephyceae"),
+  other = c("Bolidophyceae", "Chrysophyceae", "Dictyochophyceae", "Eustigmatophyceae", "Pinguiophyceae", "Pelagophyceae", "Raphidophyceae", "Synchromophyceae", "Euglenida")
+)
+
+```
+    
+***  
+
+### Define Functions
+#### Define Functions
+Here we define out own functions that are used within this pipeline and not otherwise defined in packages. These help streamline our code overall.  
+
+#### Update taxa NAs  
+This function takes a data frame e.g. `taxa.df` as input then
+
+1.  Convert to Character: In the beginning, the function ensures that all values in the data frame are of character data type by looping through each column and converting its values to character.
+2.  Replace NAs: The function then looks for missing values (NAs) within the data frame. When it encounters an NA at a specific position in the data frame, it identifies which taxonomic level that column corresponds to. This is determined by the index, with columns 1 to 9 representing Domain, `Supergroup`, `Division`, `Subdivision`, `Class`, `Order`, `Family`, `Genus`, and `Species`, respectively.
+3.  Create `Unclassified `Value: For each missing value, the function generates a new value to replace the NA. This new value is constructed as "Unclassified" followed by the corresponding taxonomic level name. For example, if a missing value is in the Division column, it would be replaced with `Unclassified_Division_`
+4.  Assign the New Value: The function then assigns this newly generated "Unclassified" value to the column containing the missing value and all subsequent columns of that row, ensuring that all lower taxonomic levels are also marked as "Unclassified" for that specific taxonomic group.
+
+```{r func.update_taxa_na}
+update_taxa_na <- function(taxa_df) {
+  for (i in 1:9) {
+    taxa_df[, i] <- as.character(taxa_df[, i])
+  }
+  
+  taxa_df[is.na(taxa_df)] <- ""  # Replace any missing values with empty strings
+
+  for (i in 1:nrow(taxa_df)) {
+    if (taxa_df[i, 2] == "") {
+      kingdom <- paste("Unclassified_Domain_", taxa_df[i, 1], sep = "")
+      taxa_df[i, 2:9] <- kingdom
+    } else if (taxa_df[i, 3] == "") {
+      supergroup <- paste("Unclassified_Supergroup_", taxa_df[i, 2], sep = "")
+      taxa_df[i, 3:9] <- supergroup
+    } else if (taxa_df[i, 4] == "") {
+      division <- paste("Unclassified_Division_", taxa_df[i, 3], sep = "")
+      taxa_df[i, 4:9] <- division
+    } else if (taxa_df[i, 5] == "") {
+      subdivision <- paste("Unclassified_SubDivision_", taxa_df[i, 4], sep = "")
+      taxa_df[i, 5:9] <- subdivision
+    } else if (taxa_df[i, 6] == "") {
+      class <- paste("Unclassified_Class_", taxa_df[i, 5], sep = "")
+      taxa_df[i, 6:9] <- class
+    } else if (taxa_df[i, 7] == "") {
+      order <- paste("Unclassified_Order_", taxa_df[i, 6], sep = "")
+      taxa_df[i, 7:9] <- order
+    } else if (taxa_df[i, 8] == "") {
+      family <- paste("Unclassified_Family_", taxa_df[i, 7], sep = "")
+      taxa_df[i, 8:9] <- family
+    } else if (taxa_df[i, 9] == "") {
+      taxa_df$R9[i] <- paste("Unclassified_Genus_", taxa_df$R8[i], sep = "_")
+    }
+  }
+  
+  return(taxa_df)
+}
+
+```
+
+Usage: Assuming you have a data frame called taxa.df `updated_taxa_df <- update_taxa_na(taxa.df)`
+
+#### Sequence Summary Stats  
+The `calculate_summary` function takes a dataset, a region identifier, and a community identifier as input and calculates several summary statistics for the dataset. These statistics include the total number of ASVs (Amplicon Sequence Variants) in the dataset, the minimum and maximum ASV counts across sites, the mean ASV count, and the standard error of the mean. It then organizes this information into a data frame with site-specific details and returns the data frame, providing a concise summary of the dataset's characteristics within the specified region and community.
+
+```{r func.summaryStats}
+std.error <- function(x) sd(x)/sqrt(length(x))
+
+calculate_summary <- function(data, region, community) {
+  total_ASVs <- sum(sample_sums(data))
+  min_val <- min(sample_sums(data))
+  max_val <- max(sample_sums(data))
+  std_error <- std.error(sample_sums(data))
+  mean_val <- mean(sample_sums(data))
+  
+  df <- data.frame(Site = unique(sample_data(data)$siteID),
+                   Region = region,
+                   Total_ASVs = total_ASVs,
+                   Minimum = min_val,
+                   Maximum = max_val,
+                   Mean = mean_val,
+                   Std_Error = std_error,
+                   Community = community
+  )
+  
+  return(df)
+}
+
+```
+
+#### ASV percentages per site  
+The function calculate_grouped_percentages performs the following tasks:  
+  1. Subset Data: It selects data corresponding to a specified sample label within a `phyloseq` dataset.    
+  2. Calculate Percentages: It computes the percentages of abundance for each taxonomic class within the selected sample, normalized to sum up to 100%.    
+  3. Grouping and Summarizing: It groups the taxonomic classes into defined categories (e.g., dinoflagellates, diatoms) as per the provided class groupings and summarizes the percentages within these categories.    
+  4. Return Results: Finally, it returns a data frame containing the percentages of taxonomic class groupings for the specified sample label in the `phyloseq` data set.    
+
+```{r func.asvPerc}
+calculate_grouped_percentages <- function(phy_data, sample_label, class_groupings) {
+  # Subset data for the specified sample label
+  sample_data <- dplyr::filter(phy_data, Sample == sample_label)
+  
+  # Calculate percentages for the specified sample label
+  sample_percentages <- sample_data %>%
+    dplyr::group_by(Class) %>%
+    dplyr::summarise(Percentage = sum(Abundance)) %>%
+    dplyr::mutate(Percentage = Percentage / sum(Percentage) * 100)  # Calculate percentage within each class
+  
+  # Merge the percentages back into the sample data
+  sample_data <- dplyr::left_join(sample_data, sample_percentages, by = "Class")
+  
+  # Group percentages and rename to match object names
+  grouped_percentages <- sample_data %>%
+    dplyr::mutate(Class_Group = dplyr::case_when(
+      Class %in% class_groupings$dinoflagellates ~ "dinoflagellates",
+      Class %in% class_groupings$diatoms ~ "diatoms",
+      Class %in% class_groupings$chlorophytes ~ "chlorophytes",
+      Class %in% class_groupings$haptophytes ~ "haptophytes",
+      Class %in% class_groupings$other ~ "other",
+      TRUE ~ "unclassified"
+    )) %>%
+    dplyr::group_by(Class_Group) %>%
+    dplyr::summarise(Percentage = sum(Percentage)) %>%
+    dplyr::rename(Class = Class_Group) %>%
+    dplyr::mutate(site = sample_label)
+  
+  return(grouped_percentages)
+}
+```
+  
+#### Colour palette   
+This function allows you to preview your custom defined colour schemes to make sure they look great.
+  *This code defines a function `print_pal` that takes a vector x of colors as input.  
+  *The function sets up a graphical display to show the colors in the input vector `x`.  
+  
+```{r, palletFunction}
+print_pal <- function(x, ...) {
+  n <- length(x)
+  old <- par(mar = c(0.5, 0.5, 0.5, 0.5))
+  on.exit(par(old))
+
+  image(1:n, 1, as.matrix(1:n), col = x,
+        ylab = "", xaxt = "n", yaxt = "n", bty = "n", ylim = c(0, 1))
+}
+
+```
+  ***  
+  
+## Summary Data
+#### ASV Summary data
+__Data Wrangling__  
+This part of the code prepares data for creating a rarefaction curve plot. It sets labels for different sampling points and merges the samples from each site.
+``` {r SiteLabels}
+# Merge the filtered samples by siteID
+EMC <- phyloseq::merge_samples(waterSamples_filtered, "siteID")
+```
+  
+  __Excluded ASVs__  
+  Before further analysis we calculate how many ASVs are excluded by the filtering to `Class` level for further analysis. We calculate this at division, sub-division and Class level, then export the results as `.csv` files into the sub-directory `_exports`.  
+  
+```{r excluded microalgal ASVs}
+# Extract taxonomy table from phyloseq object
+taxa.df <- data.frame(tax_table(waterSamples_filtered))
+
+# Mark which ASVs are retained
+taxa.df$Retained <- taxa.df$R5 %in% emc.classes
+
+### R3 (Division) level summary
+summary_r3 <- taxa.df %>%
+  group_by(Division = R3) %>%
+  summarise(
+    Total_ASVs = n(),
+    Retained_ASVs = sum(Retained, na.rm = TRUE),
+    Removed_ASVs = Total_ASVs - Retained_ASVs,
+    Percent_Removed = round(100 * Removed_ASVs / Total_ASVs, 1),
+    .groups = "drop"
+  )
+
+write.csv(summary_r3, "_exports/R3_Level_ASV_Removal.csv", row.names = FALSE)
+
+### R4 (Sub-division) level summary
+summary_r4 <- taxa.df %>%
+  group_by(Division = R3, Subdivision = R4) %>%
+  summarise(
+    Total_ASVs = n(),
+    Retained_ASVs = sum(Retained, na.rm = TRUE),
+    Removed_ASVs = Total_ASVs - Retained_ASVs,
+    Percent_Removed = round(100 * Removed_ASVs / Total_ASVs, 1),
+    .groups = "drop"
+  )
+
+write.csv(summary_r4, "_exports/R4_Level_ASV_Removal.csv", row.names = FALSE)
+
+### R5 (Class) level summary with parent Sub-division and Division
+summary_r5 <- taxa.df %>%
+  group_by(Division = R3, Subdivision = R4, Class = R5) %>%
+  summarise(
+    Total_ASVs = n(),
+    Retained_ASVs = sum(Retained, na.rm = TRUE),
+    Removed_ASVs = Total_ASVs - Retained_ASVs,
+    Percent_Removed = round(100 * Removed_ASVs / Total_ASVs, 1),
+    .groups = "drop"
+  )
+
+write.csv(summary_r5, "_exports/R5_Level_ASV_Removal.csv", row.names = FALSE)
+```
+
+***  
+
+__Subset to Eukaryotic Microalgal Taxa__
+
+Here, we subset the data to include only Eukaryotic Microalgae taxa based on the R5 or class categories, where R1 = Domain, R2 = Supergroup, R3 = Division, R4 = Phylum, R5 = Class, R6 = Order, R7 = Family, R8 = Genus, R9 = Species.  
+  
+For this research the Eukaryotic microalgae taxa are binned into high level taxonomic-functional groups that include; Dinoflagellates, pennate diatoms, radial centric diatoms, polar centric diatoms, haptophytes, chlorophytes and 'other'.   
+
+These divisions are used consistently throughout the analysis. 
+
+```{r rare_SubsetEMC}
+# Convert to data frame
+taxa.df <- data.frame(phyloseq::tax_table(EMC)) 
+#Subset to emc classes (R5)
+rare.waterSamples <- phyloseq::subset_taxa(EMC, R5 %in% emc.classes)
+
+# update dataframe
+taxa.df <- data.frame(phyloseq::tax_table(rare.waterSamples))
+
+# removes all `NA's` in taxonomy.
+tax.clean <- data.frame(phyloseq::tax_table(rare.waterSamples)) 
+
+```
+
+__EMC Sequence data info__  
+Here we want to find out what proportion of the raw reads is made up by each ecoregion. 
+First the samples are merged based on their ecoregion, then subset to the EMC, then we view the `sample_sums` per ecoregion.
+
+```{r, ecoregion asv sums, warning=FALSE}
+ecoRegionWater <- phyloseq::merge_samples(waterSamples_filtered, "ecoregion")
+sample_sums(ecoRegionWater)
+```  
+Now we subset `ecoRegionWater` to class level (R5), define the sub-set as `waterSamples_emc`, and view the new `sample_sums`.
+
+```{r sub-set ecoregion asv sums}
+#Subset to emc classes (R5)
+waterSamples_emc <- phyloseq::subset_taxa(ecoRegionWater, R5 %in% emc.classes)
+sample_sums(waterSamples_emc)
+```
+  
+  Finally, we create a summary of these (`emc_summary`), and calculate the percentage of ASVs remaining after filtering to EMC taxa only.  This is then written into `.csv` format and saved in the sub-directory `_exports`.  
+  
+```{r subset difference in ASVs}
+emc_summary <- calculate_summary(waterSamples_emc, "v9", "Emc")
+
+# Calculate the sample sums per ecoregion for the original phyloseq object
+original_sample_sums <- sample_sums(ecoRegionWater)
+
+# Calculate the sample sums per ecoregion for the subset phyloseq object
+subset_sample_sums <- sample_sums(waterSamples_emc)
+
+# Create a data frame to store the results for both original and subsetted objects
+df <- data.frame(
+  Ecoregion = names(original_sample_sums),
+  Original_Sample_Sum = original_sample_sums,
+  Subset_Sample_Sum = subset_sample_sums
+)
+
+# Calculate the percentage remaining for each ecoregion
+df$Percentage_Remaining <- (df$Subset_Sample_Sum / df$Original_Sample_Sum) * 100
+
+# Calculate the overall total sums for both original and subset objects
+total_original_sum <- sum(original_sample_sums)
+total_subset_sum <- sum(subset_sample_sums)
+
+# Create a row for the overall total sums and percentage
+total_row <- data.frame(
+  Ecoregion = "All",
+  Original_Sample_Sum = total_original_sum,
+  Subset_Sample_Sum = total_subset_sum,
+  Percentage_Remaining = (total_subset_sum / total_original_sum) * 100
+)
+
+# Bind the overall total to the data frame with per-ecoregion data
+final_df <- rbind(df, total_row)
+
+# Export the 'indicator_sp_info' data frame to a CSV file
+write.csv(final_df, "_exports/asv_emc_percent.csv", row.names = FALSE)
+
+# Output the final data frame
+final_df
+```
+
+#### Rarefaction
+__Plot rarefaction curve__  
+This code creates a rarefaction curve plot for the Chp3.waterSamples data, providing insights into the data set's richness and diversity. The plot is created with the minimal theme.  
+This will most likely end up in the supplementary materials, but is good to assess what level you should rarefy your samples to for further analysis.
+
+```{r, PlotRareCurve}
+rareCurve_plot <- ggrare(rare.waterSamples, step = 2000, label = sitelabels) +
+  labs(title = "SSU v9 region") +
+  theme_minimal()
+
+rareCurve_plot
+
+```
+  
+***  
+
+## Diversity Analysis {.tabset .tabset-fade} 
+__What is diversity analysis?__  
+Here we are looking at alpha and beta diversity and unique ASVS of the sampled EMCs.    
+* Alpha diversity measures species richness within a specific microalgae community, representing the diversity at a local scale. It assesses the number of unique taxa and their abundance.  
+* Beta diversity, on the other hand, evaluates the variation in species composition between different microalgae communities. It measures the turnover or differentiation of species across habitats, providing insights into community dissimilarity.  
+  
+With this microalgae metabarcoding data, alpha diversity indicates how many and how evenly distributed species are within a sample, while beta diversity highlights differences in microalgae composition between distinct environments or conditions. Both analyses offer valuable insights into the ecological patterns and dynamics of microalgae communities.  
+  
+### Alpha Diversity
+__Alpha diversity Data Prep__  
+This code block assigns a specific order to the `ecoregion` factor levels in the sample data of the `alpha.waterSamp_pru` object. The factor levels are reordered to match the specified sequence: "tropical," "sub-tropical," "temperate," "sub-polar," and "polar." This will affect the order in which the ecoregions are displayed in subsequent plots
+```{r, Alpha_sampleData}
+
+#Subset to emc classes (R5)
+alpha.waterSamples <- phyloseq::subset_taxa(waterSamples_filtered, R5 %in% emc.classes)
+
+# Pruning OTUs that are not present in any of the samples
+alpha.waterSamp_pru <- phyloseq::prune_taxa(taxa_sums(alpha.waterSamples) > 0, alpha.waterSamples)
+
+tax.df <- data.frame(phyloseq::tax_table(alpha.waterSamp_pru))
+
+phyloseq::sample_data(alpha.waterSamp_pru)$ecoregion <- factor(phyloseq::sample_data(alpha.waterSamp_pru)$ecoregion, levels = c("tropical", "sub-tropical","temperate", "sub.polar", "polar"))
+```
+
+In this code block, rarefaction is applied to the `alpha.waterSamp_pru` object. It trims the samples to a minimum sum of 19,000 reads based on the results of a rarefaction curve. The `alpha.waterSamp_pru.rare` variable stores the rarefied samples. The `sample_sums` function is used to check the sample sums after rarefaction.
+
+```{r, Rarefy}
+#rarefy
+waterSamples_trim <- phyloseq::prune_samples(phyloseq::sample_sums(alpha.waterSamp_pru) >= 11000, alpha.waterSamp_pru) # change number based on the results of your rarefaction curve.
+alpha.waterSamp_pru.rare <- phyloseq::rarefy_even_depth(waterSamples_trim, min(phyloseq::sample_sums(waterSamples_trim)), replace=F) 
+
+# Prepare data file for Assembly Processes analysis
+#dir.create(here("_assemblyProcesses", "_inputs"))
+# Save out for use in Assembly processes analysis
+saveRDS(alpha.waterSamp_pru.rare, file = "_assemblyProcesses/_inputs/waterSamples_pru_rare.rds")
+
+phyloseq::sample_sums(alpha.waterSamp_pru.rare)
+
+```
+__Alpha Indicies Plot__  
+This code block creates a richness plot (alpha diversity) for the rarefied `alpha.waterSamp_pru.rare` object. It displays Observed, Shannon, and Inverse Simpson richness measures. Custom ecoregion colors are specified, and the site ID order is changed according to the earlier factor reordering. The plot's appearance is adjusted using theme settings, including grid line width and point size.
+
+```{r, colors}
+# Plotting Alpha with custom ecoregion colors and changed site ID order
+# Ecoregion colours
+ecoregion_cols <- c("tropical" = "#f0e097", "sub-tropical" = "#cfe5b2", "temperate" = "#88b945", "sub.polar" = "#a9dac9", "polar" = "#89b7e5")
+
+#check colours
+print_pal(ecoregion_cols)
+```
+
+```{r, AlphaPlot, fig.cap="Analysis of alpha diversity indices of Eukaryotic Microalgae across five ecoregions calculated from rarefied ASV data including Chao1, Shannon and Inverse Simpson indexes for the 18s V9 region. (P value adjustment method: BH)"}
+
+theme_set(theme_minimal())
+
+a_my_comparisons <- list( c("Tropical", "Sub-tropical"), c("Tropical", "Temperate"), c("Tropical", "Sub-polar"), c("Tropical", "Polar")
+                          )
+symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), symbols = c("****", "***", "**", "*", "ns"))
+
+alpha_plot <- plot_richness(alpha.waterSamp_pru.rare, 
+                            x = "ecoregion", 
+                            color = "ecoregion", 
+                            measures = c("Observed", "Shannon", "InvSimpson")) +
+  geom_boxplot(aes(color = ecoregion), fill = "white", alpha = 1, outlier.shape = NA) +
+  scale_color_manual(values = ecoregion_cols) +
+  theme(
+    panel.grid = element_blank(),
+    panel.border = element_blank(),
+    axis.line.x = element_line(color = "gray70", linewidth = 0.5),
+    axis.line.y = element_line(color = "gray70", linewidth = 0.5),
+    axis.ticks = element_line(color = "gray70", linewidth = 0.4),
+    axis.ticks.length = unit(0.2, "cm"),
+    text = element_text(size = 8)
+  )
+
+#Save plot
+ggsave("_plots/alphaDiversityPlot.pdf", plot = alpha_plot, device = "pdf", width = 8, height = 4)
+
+# creates boxplot
+alpha_plot
+
+```
+
+__Tests of Significance__  
+In this code block, alpha diversity statistics are calculated and tested using pairwise Wilcoxon tests. It compares richness (Chao1, Shannon, and Inverse Simpson) between different ecoregions. The rich.rare object contains the estimated richness values, and the tests are applied to determine statistical differences between ecoregions. The "BH" method is used for p-value adjustment, and the results are presented as pairwise comparisons.
+
+```{r, wilcoxTests}
+rich.rare = estimate_richness(alpha.waterSamp_pru.rare)
+
+#- Save results to csv file
+write.csv(as.data.frame(rich.rare), 
+          file = "_exports/alphaDiversity_data.csv")
+
+#--- Observed Taxa ---#
+
+# Run Pairwise test 'OBSERVED'
+wilcox_obs <- pairwise.wilcox.test(rich.rare$Observed, sample_data(alpha.waterSamp_pru.rare)$ecoregion, p.adjust.method = "BH", paired = FALSE, exact = FALSE)
+
+#- Save results to CSV files
+write.csv(as.data.frame(wilcox_obs$p.value), 
+         file = "_exports/wilcox_Observed.csv")
+
+#--- Shannon Index ---#
+# Run Pairwise test 'Shannon'
+wilcox_shannon <- pairwise.wilcox.test(rich.rare$Shannon, sample_data(alpha.waterSamp_pru.rare)$ecoregion, p.adjust.method = "BH", paired = FALSE, exact = FALSE)
+
+#- Save results to CSV files
+write.csv(as.data.frame(wilcox_shannon$p.value), 
+         file = "_exports/wilcox_Shannon.csv")
+
+#--- Inverse Simpson Index ---#
+# Run Pairwise test 'Inv Simpson'
+wilcox_invsimpson <- pairwise.wilcox.test(rich.rare$InvSimpson, sample_data(alpha.waterSamp_pru.rare)$ecoregion, p.adjust.method = "BH", paired = FALSE, exact = FALSE)
+
+#- Save results to CSV files
+write.csv(as.data.frame(wilcox_invsimpson$p.value), 
+         file = "_exports/wilcox_InvSimpson.csv")
+
+```
+
+  
+### Beta Diversity
+__Beta diversity data Prep__  
+This code block performs several data transformation and processing steps to prepare for beta diversity analysis:  
+  
+* It calculates the percentage abundance of OTUs (Operational Taxonomic Units) in the rarefied `alpha.waterSamp_pru.rare` data using the `transform_sample_counts` function.  
+* It filters out OTUs based on a threshold (currently set to >1% abundance) using the `filter_taxa` function, which removes OTUs with an average abundance less than or equal to 0.  
+* The filtered data is converted into a data frame format using the `psmelt` function.  
+* Bray-Curtis dissimilarity is calculated for the transformed data using the `phyloseq::distance` function with the "jaccard" method for binary data.  
+* Principal Coordinates Analysis (PCoA) is performed on the Bray-Curtis dissimilarity matrix using the "NMDS" (Non-Metric Multidimensional Scaling) method.  
+* The PCoA vectors are extracted and stored in a data frame.
+
+```{r, BetaPrep}
+alpha.waterSamp_pru.rare_perc = transform_sample_counts(alpha.waterSamp_pru.rare, function(OTU) OTU/sum(OTU)*100)
+
+# can change threshold - (> 1) currently at 1 % can go to zero if less abundance
+alpha.waterSamp_pru.rare_perc_filtered = filter_taxa(alpha.waterSamp_pru.rare_perc, function(x) mean(x) > 0, TRUE)
+alpha.waterSamp_pru.rare_perc_filtered_df <- psmelt(alpha.waterSamp_pru.rare_perc_filtered)
+
+# Calculate Bray-Curtis dissimilarity matrix
+alpha.waterSamp_pru.perc_bray <- phyloseq::distance(alpha.waterSamp_pru.rare_perc_filtered, method = "jaccard", binary=T)
+
+# Perform PCoA using Bray-Curtis dissimilarity matrix
+alpha.waterSamp_pru.perc_ord <- ordinate(alpha.waterSamp_pru.rare_perc_filtered, method = "NMDS", distance = alpha.waterSamp_pru.perc_bray)
+
+# Extract PCoA vectors and create a data frame
+alpha.waterSamp_pru.perc_ord.vectors <- data.frame(alpha.waterSamp_pru.perc_ord$points)
+
+# Assign Ecoregion names to the data frame
+alpha.waterSamp_pru.perc_ord.vectors$sampleID <- rownames(alpha.waterSamp_pru.perc_ord.vectors)
+sd <- data.frame(sample_data(alpha.waterSamp_pru.rare_perc_filtered))
+sd$sampleID <- rownames(sd)
+alpha.waterSamp_pru.perc_ord.vectors <- left_join(alpha.waterSamp_pru.perc_ord.vectors, sd, by="sampleID")
+
+```
+
+__Beta Diversity NMDS Plot__  
+This code block creates a beta diversity plot using the NMDS results:  
+  
+*The ggplot function is used to generate the plot, with MDS1 and MDS2 (the first two PCoA dimensions) on the x and y axes, respectively.  
+*Points are added to the plot to represent the samples, and their color is determined by the "ecoregion" variable.  
+*Custom ecoregion colors are specified with `scale_color_manual`.  
+*The plot is styled using the "theme_classic" theme, and ellipses are added using `stat_ellipse`.  
+The resulting plot, beta_plot, visualizes the beta diversity among samples in the different ecoregions based on the Bray-Curtis dissimilarity matrix.
+
+```{r, BetaPlot}
+# Create the plot
+beta_plot <- ggplot(alpha.waterSamp_pru.perc_ord.vectors, aes(x = MDS1, y = MDS2, color = ecoregion)) +
+  geom_point(size = 2) +
+  scale_color_manual(values = ecoregion_cols) +
+  theme_classic() +
+  stat_ellipse() +
+  labs(
+    x = "NMDS1",  # Change this to your preferred label
+    y = "NMDS2",  # Change this to your preferred label
+    color = "Ecoregion"   # Optional: change the legend title
+  )
+
+# View Plot
+beta_plot
+
+#save Plot
+
+ggsave(
+  filename = here("_plots", "betaDiversityPlot.pdf"),  # change path/format as needed
+  plot = beta_plot,
+  device = "pdf",
+  width = 6, height = 6, dpi = 300
+)
+```
+
+__PERMANOVA__  
+(Permutational Multivariate Analysis of Variance):  
+  
+This is a statistical test used to assess the variation in multivariate data sets, especially distance matrices such as beta diversity.
+For beta diversity measures, it examines whether the dissimilarity in species composition between samples (e.g., different ecosystems or sites) is statistically significant.  
+It tests the null hypothesis that there's no difference in the groups being compared based on the given dissimilarity matrix.  
+* Why PERMANOVA: is can be used to Help determine if there are significant differences in species composition between different ecosystems or sites, Examine the influence of categorical variables (like `ecosystems` and `siteID`s) on beta diversity while considering multiple dimensions of community composition.  
+* Interpreting Results: The output provides an R-squared (proportion of variance explained), F-statistic, and associated p-value. A low p-value suggests that at least one factor (or interaction) significantly affects the beta diversity.  
+* Here `adonis2` is a function from the `vegan` package, used for performing a PERMANOVA analysis on distance matrices. The formula `ice.beta.perc_bray ~ ecosystem * siteID` specifies the model for the PERMANOVA. It examines the association __between__ the Bray-Curtis dissimilarity matrix `ice.beta.perc_bray` and the interaction between `ecosystem` and `siteID` variables.  
+
+```{r BetaPERMANOVA}
+# Using vegan's adonis function for PERMANOVA
+beta_diversity_model <- adonis2(alpha.waterSamp_pru.perc_bray ~ ecoregion, data = alpha.waterSamp_pru.perc_ord.vectors, permutations = 999)
+
+# Convert to data frame
+beta_df <- as.data.frame(beta_diversity_model)
+
+# Save as CSV using 'here'
+write.csv(beta_df, here("_exports", "beta_diversity_adonis2.csv"), row.names = TRUE)
+```
+
+### Venn Diagram
+__Venn diagram data Prep__  
+In this code block, subsets of samples are created for each `ecoregion`. Samples are filtered based on their respective ecoregions, and the resulting subsets are assigned to variables such as `tropical`, `subtropical`, `temperate`, `subpolar`, and `polar`. These subsets will be used for further analysis.
+
+In this code block, taxonomic data is filtered for each ecoregion subset (tropical, subtropical, etc.). The `subset_taxa` function is used to extract taxa belonging to specific high-level taxonomic classes represented by the `emc.classes` variable. Additionally, taxa with zero abundance are removed using the `prune_taxa` function. The names of the remaining taxa for each ecoregion are stored in variables like `tropical.names`.
+
+
+```{r}
+#Subset to emc classes (R5)
+emc.waterSamples <- phyloseq::subset_taxa(waterSamples_filtered, R5 %in% emc.classes)
+
+# update dataframe
+taxa.df <- data.frame(phyloseq::tax_table(emc.waterSamples))
+
+# removes all `NA's` in taxonomy.
+tax.clean <- data.frame(phyloseq::tax_table(emc.waterSamples)) 
+
+```
+
+```{r ASV ids}
+# Generate unique ASV headers for the new phyloseq object
+asv_headers_venn <- vector(dim(data.frame(taxa_names(emc.waterSamples)))[1], mode="character")
+for (i in 1:dim(data.frame(taxa_names(emc.waterSamples)))[1]) {
+  asv_headers_venn[i] <- paste("ASV", i, sep="_")
+}
+
+# Assign unique ASV headers to taxa names
+taxa_names(emc.waterSamples) <- asv_headers_venn
+
+# Convert otu_table to a data frame
+emc.waterSamples.df <- as.data.frame(otu_table(emc.waterSamples))
+
+# Convert sample data to a data frame
+emc.waterSamples.sd <- as.data.frame(sample_data(emc.waterSamples))
+```
+
+
+```{r, VennFilterTaxa}
+tropical.phyto <- subset_samples(emc.waterSamples, ecoregion == "tropical")
+subtropical.phyto <- subset_samples(emc.waterSamples, ecoregion == "sub-tropical")
+temperate.phyto <- subset_samples(emc.waterSamples, ecoregion == "temperate")
+subpolar.phyto <- subset_samples(emc.waterSamples, ecoregion == "sub.polar")
+polar.phyto <- subset_samples(emc.waterSamples, ecoregion == "polar")
+
+tropical.phyto <- prune_taxa(taxa_sums(tropical.phyto) > 0, tropical.phyto)
+subtropical.phyto <- prune_taxa(taxa_sums(subtropical.phyto) > 0, subtropical.phyto)
+temperate.phyto <- prune_taxa(taxa_sums(temperate.phyto) > 0, temperate.phyto)
+subpolar.phyto <- prune_taxa(taxa_sums(subpolar.phyto) > 0, subpolar.phyto)
+polar.phyto <- prune_taxa(taxa_sums(polar.phyto) > 0, polar.phyto)
+
+tropical.names <- taxa_names(tropical.phyto)
+subtropical.names <- taxa_names(subtropical.phyto)
+temperate.names <- taxa_names(temperate.phyto)
+subpolar.names <- taxa_names(subpolar.phyto)
+polar.names <- taxa_names(polar.phyto)
+
+```
+
+__Venn Diagram Plot__  
+This code block sets up the Venn diagram plot. It defines a list of data to compare, with each element of the list corresponding to an ecoregion and its associated taxa. The `ggVennDiagram` function creates the base Venn diagram, specifying parameters for the appearance, such as edge size, label options, and category names.
+Note color schemes for each figure type are all in the [Setup](##Setup) section of this doc.  
+  
+1. `venn.v9 <-`: This code initializes a variable `venn.v9` to store the Venn diagram plot generated by the `ggVennDiagram` function.  
+2. `ggVennDiagram(otu_list, ...)`: This is where the Venn diagram is created. The `ggVennDiagram` function generates the Venn diagram based on the list of data, `otu_list`, and other specified parameters.  
+3. `otu_list`: This list contains data for each ecoregion, where each element (A, B, C, D, E) represents a different ecoregion and its associated taxa.  
+4. `edge_size = 3`: It sets the size of the edges of the Venn diagram to 3, determining the width of the lines that separate the regions.  
+5. `label_alpha = 0`: This parameter specifies the transparency level for region labels. Setting it to 0 makes the labels completely transparent.  
+6. `label = "count"`: This parameter determines what is displayed in the labels of each region. In this case, it shows the count of elements in each region.  
+7. `label_size = 3.5`: It sets the font size for the region labels to 3.5 points.  
+8. `set_size = 4`: This parameter controls the size of the Venn diagram itself.  
+9. `category.names = c("Tropical", "Sub-tropical", "Temperate", "Sub-polar", "Polar")`: It specifies the category names associated with each ecoregion, which will be used to label the regions in the Venn diagram. These names correspond to the ecoregions represented in the `otu_list`.  
+
+```{r, VennBasePlot}
+# Defining the list of data to compare
+# if you want less just remove a letter
+otu_list <- list( A = tropical.names,
+                  B = subtropical.names,
+                  C = temperate.names,
+                  D = subpolar.names,
+                  E = polar.names
+)
+
+# Base plot 
+venn.v9 <- ggVennDiagram(otu_list, 
+                         edge_size = 1, 
+                         label_alpha = 0, 
+                         label = "count", 
+                         label_size = 3.5, 
+                         set_size = 4,
+                         category.names = c("Tropical","Sub-tropical","Temperate","Sub-polar", "Polar")) # naming each element
+```
+
+Building on the previous code block, this one further customizes the Venn diagram using ggplot elements. It adjusts the fill color gradient, line colors, and legend text properties to improve the visual presentation of the Venn diagram. The resulting plot, `venn.v9`, displays the intersection and differences in taxa between ecoregions, with color gradients indicating the count of shared taxa.
+  
+1. `venn.v9 +`: This part of the code specifies that we are building upon the `venn.v9` plot generated in the previous code block (`VennBasePlot`).  
+2. `scale_fill_gradientn(...)`: This line of code adjusts the fill color scale of the Venn diagram. It controls the colors of the different regions in the Venn diagram. The scale_fill_gradientn function allows for a gradient color scale.  
+3. `colors = cols.eco(1000)`: Here, the colors are defined using the `cols.venn` function defined in [Colour Schemes](##colour Schemes), which returns a gradient of colors based on `venn_cols` (possibly 1000 different colors). This part sets the color palette for the Venn diagram regions.  
+4. `limits = c(0, 1000)`: This sets the lower and upper limits of the color scale. It means that the lowest count (0) will be assigned the first color in the palette, and the highest count (1000) will be assigned the last color in the palette.  
+5. `breaks = c(0, 200, 400, 600, 800, 1000)`: Breaks determine the values at which the colors change in the gradient. This code specifies that color transitions should occur at counts of 0, 200, 400, 600, 800, and 1000.  
+6. `scale_color_manual(...)`: This line of code customizes the color of the lines outlining the Venn diagram regions. The scale_color_manual function is used to manually set the colors.  
+  + `values = vennLine_cols`: It assigns colors to the lines based on the `vennLine_cols` variable defined in [Setup](##Setup), which contains the color scheme for the Venn diagram lines.  
+  7.`theme(text = element_text(size = 8))`: This line sets the text properties of the plot's legend. It changes the text size for the legend items to 8 points. This ensures that the legend text is legible and appropriately sized in the final Venn diagram.
+
+```{r, VennPlot}
+# Venn Diagram colour scheme
+venn_cols <- c( "#efffff","#8dd2f9", "#4b8cca", "#ffcb27",  "#f48521", "#bc3635") 
+cols.venn <- colorRampPalette(venn_cols) # this makes the colourscheme a function that can be used as with continuous data sets
+vennLine_cols <- c("#e1f6ff", "#e1f6ff", "#e1f6ff", "#e1f6ff", "#e1f6ff") # this must match the number of elements in your list
+
+# Save the final Venn diagram
+venn_plot <- venn.v9 + 
+  scale_fill_gradientn(colors = cols.venn(1000),
+                       limits = c(0, 1000), 
+                       breaks = c(0, 200, 400, 600, 800, 1000)) +
+  scale_color_manual(values = vennLine_cols) +
+  theme(text = element_text(size = 8))
+
+# Save as PNG (or PDF, SVG, etc.)
+ggsave(
+  filename = here("_plots", "venn_diagram.pdf"),  # change path/format as needed
+  device = "pdf",
+  plot = venn_plot,
+  width = 6, height = 6, dpi = 300
+)
+
+venn_plot
+
+```
+
+__Common ASVs across all Ecoregions__  
+Here we list all the common ASVs that were detected in all ecoregions with taxonomy applied.
+
+
+```{r common asvs}
+# Identify the common ASVs in all five ecoregions
+common_asvs <- Reduce(intersect, list(tropical.names, subtropical.names, temperate.names, subpolar.names, polar.names))
+
+# Display the common ASVs
+common_asvs
+```
+
+```{r dna seqs}
+# Step 1: Get the ASV IDs from the taxa names
+asv_ids <- taxa_names(emc.waterSamples)
+
+# Step 2: Extract the DNA sequences from the row names of the taxa table
+# Assuming the row names of the taxa table are the DNA sequences
+taxa_table <- tax_table(emc.waterSamples)
+dna_sequences <- rownames(taxa.df)
+
+# Step 3: Extract taxonomic information (Kingdom, Phylum, Class, etc.) from the tax_table
+# Convert the tax_table to a data frame for easier access
+taxa_info <- as.data.frame(taxa_table)
+
+# Step 4: Combine all into a single data frame
+asv_df <- data.frame(
+  ASV_ID = asv_ids,
+  DNA_Sequence = dna_sequences,
+  taxa_info
+)
+
+# Step 5: Write the taxonomic table to a CSV file
+write.csv(asv_df, "_exports/all_asvs_IDs.csv", row.names = TRUE)
+```
+
+```{r common asv abundance}
+# Extract OTU (ASV) table from your phyloseq object as a data frame
+asv_table <- as.data.frame(otu_table(emc.waterSamples))
+
+# Transpose the table if the ASVs are columns instead of rows
+# (we want ASVs as rownames and samples as columns)
+if (!rownames(asv_table)[1] %in% common_asvs) {
+  asv_table <- t(asv_table)
+}
+
+# Subset the ASV table to keep only the common ASVs that appear in all ecoregions
+common_asv_counts <- asv_table[rownames(asv_table) %in% common_asvs, ]
+
+# Sum the total read counts across all samples for each common ASV
+common_asv_totals <- rowSums(common_asv_counts)
+
+# Calculate the total number of reads across all ASVs and all samples
+total_reads_all <- sum(asv_table)
+
+# Create a summary table with total reads and relative abundance (as a fraction of total)
+abundance_summary <- data.frame(
+  ASV_ID = names(common_asv_totals),                          # ASV identifiers
+  Total_Reads = as.numeric(common_asv_totals),                # Total reads per ASV
+  Fraction_of_Total = round(common_asv_totals / total_reads_all, 6)  # Proportion of all reads
+)
+
+# Sort the summary by descending abundance
+abundance_summary <- abundance_summary[order(-abundance_summary$Total_Reads), ]
+
+# Output the table
+print(abundance_summary)
+
+# Write the common ASVs to a CSV file
+write.csv(abundance_summary, "_exports/VennDiagram-commonASV_IDs.csv", row.names = TRUE)
+
+# Print a message summarizing the combined contribution of the 13 common ASVs
+cat("✅ Combined, the 13 common ASVs represent", 
+    round(sum(common_asv_totals) / total_reads_all * 100, 2), 
+    "% of total reads.\n")
+
+```
+  
+ 
+###{-}
+  
+  ***  
+  *** 
+  
+## Community Composition {.tabset .tabset-fade} 
+__Data Preparation__    
+We are going to create multiple composition plots, one to capture high level EMC trends. Then two too look at the diatom and dinoflagellate changes from tropics to the poles. These will be pie charts that will then be added to a map created in Q-Gis.  
+  
+This initial code block gets the data sorted for the base of all the composition plots to follow. The `EMC` object will be used for analysis of the whole community, diatoms and dinoflagellates.    
+1. The code begins by merging sample data `(waterSamples_filtered)` by the "siteID" column and filtering taxa with a total count greater than zero, resulting in a new dataset `EMC`.  
+2. The code further filters the dataset to include only taxa within the `emc.classes`.  
+3. The `emc.df `is created by converting the taxonomy data within `EMC` to a data frame.  
+4. The `emc.clean` data frame is derived from `emc.df`, and it aims to replace any NA values in the taxonomy data with empty strings and ensure all columns are of character type.  
+5. A loop is used to go through each row of the `emc.clean` data frame and make taxonomic assignments to the "kingdom," "phylum," "class," etc., for missing taxonomic levels.  
+6. The column names of the `emc.clean` data frame are assigned meaningful names like "Domain," "Supergroup," "Division," etc., representing taxonomic levels.  
+
+```{r defining things}
+# Define Colour scheme
+emc_cols <- c(Bacillariophyceae = "#f16a58", 
+              Coscinodiscophyceae = "#faddb4", 
+              Mediophyceae = "#fab768",
+              Dinophyceae  = "#70b6cf",
+              # Chlorophytes
+              Chlorodendrophyceae = "#cfe3e0", Chlorophyceae = "#cfe3e0", Chloropicophyceae = "#cfe3e0", Mamiellophyceae = "#cfe3e0", Nephroselmidophyceae =  "#cfe3e0", Pedinophyceae = "#cfe3e0", Trebouxiophyceae = "#cfe3e0", Pedinophyceae = "#cfe3e0", Picocystophyceae = "#cfe3e0", Prasinophyceae = "#cfe3e0", Pyramimonadophyceae = "#cfe3e0",
+              # Haptophytes
+              Coccolithophyceae = "#9eb0cf", Prymnesiophyceae = "#9eb0cf", Pavlovophyceae = "#9eb0cf", Rappephyceae = "#9eb0cf",
+              #other
+              Bolidophyceae = "#574e90", Chrysophyceae = "#574e90", Dictyochophyceae = "#574e90", Eustigmatophyceae = "#574e90", Pinguiophyceae = "#574e90", Pelagophyceae = "#574e90", Raphidophyceae = "#574e90", Synchromophyceae = "#574e90", Euglenida = "#574e90")
+
+emc_cols.grp <- c(Dinoflagellates  = "#70b6cf", Penate.Diatoms  = "#f16a58", Radial.Centric.Diatoms = "#faddb4", Polar.Centric.Diatoms = "#fab768", Chlorophytes  = "#cfe3e0", Haptophytes = "#9eb0cf", Other = "#574e90")
+print_pal(emc_cols.grp)
+```
+
+```{r CompData}
+# Merge by siteID using phyloseq
+emc.site <- phyloseq::merge_samples(waterSamples_filtered, "siteID")
+
+# Add siteID as a column from rownames
+phyloseq::sample_data(emc.site)$siteID <- rownames(phyloseq::sample_data(emc.site))
+
+# Extract sample_data as a data frame
+sample_df <- base::as.data.frame(phyloseq::sample_data(emc.site))
+
+# Add 'ecoregion' column based on siteID groupings
+sample_df$ecoregion <- base::with(sample_df, base::ifelse(siteID %in% tropical_sites, "tropical",
+                                          base::ifelse(siteID %in% subtropical_sites, "sub-tropical",
+                                          base::ifelse(siteID %in% temperate_sites, "temperate",
+                                          base::ifelse(siteID %in% subpolar_sites, "sub.polar",
+                                          base::ifelse(siteID %in% polar_sites, "polar", NA))))))
+
+# Assign updated sample data back to phyloseq object
+phyloseq::sample_data(emc.site) <- sample_df
+
+# Remove columns with all NA values
+sample_df <- sample_df[, base::colSums(!base::is.na(sample_df)) > 0]
+
+# Reassign cleaned sample data
+phyloseq::sample_data(emc.site) <- sample_df
+
+# View sample data (optional)
+phyloseq::sample_data(emc.site)
+
+# Remove taxa with total abundance of 0
+emc.site <- phyloseq::filter_taxa(emc.site, function(x) base::sum(x) > 0, TRUE)
+
+# Convert taxonomy table to data frame
+emc.df <- base::data.frame(phyloseq::tax_table(emc.site))
+
+# Subset to EM taxa
+emc.site <- phyloseq::subset_taxa(emc.site, R5 %in% emc.classes)
+
+# Convert again if needed after subsetting
+emc.df <- base::data.frame(phyloseq::tax_table(emc.site))
+
+# Remove NA values in taxonomy (assumes custom function `update_taxa_na` defined elsewhere)
+emc.clean <- base::data.frame(phyloseq::tax_table(emc.site))
+phyloseq::tax_table(emc.site) <- base::as.matrix(emc.clean)
+
+emc.clean <- update_taxa_na(emc.clean)  # User-defined function; make sure it's in your environment
+
+# Rename columns in taxonomy
+base::colnames(emc.clean) <- taxo.divisions
+
+# Assign cleaned taxonomy back to phyloseq object
+phyloseq::tax_table(emc.site) <- base::as.matrix(emc.clean)
+
+
+```
+
+Here we are getting the percentages of our microalgae functional groups for each site so that we can give specific values in the manuscript.
+
+```{r composition_proportions}
+# Create long-format data frame with taxonomic aggregation and relative abundance transformation
+phy <- emc.site %>%
+  phyloseq::tax_glom(taxrank = "Class") %>%
+  phyloseq::transform_sample_counts(function(x) { x / sum(x) }) %>%
+  phyloseq::psmelt()
+
+# Tropical sites
+T1_perc <- calculate_grouped_percentages(phy, "T1", class_groupings) %>% dplyr::mutate(ecoregion = "tropical")
+T2_perc <- calculate_grouped_percentages(phy, "T2", class_groupings) %>% dplyr::mutate(ecoregion = "tropical")
+T3_perc <- calculate_grouped_percentages(phy, "T3", class_groupings) %>% dplyr::mutate(ecoregion = "tropical")
+
+# Sub-tropical sites
+N4_perc <- calculate_grouped_percentages(phy, "N4", class_groupings) %>% dplyr::mutate(ecoregion = "sub.tropical")
+N5_perc <- calculate_grouped_percentages(phy, "N5", class_groupings) %>% dplyr::mutate(ecoregion = "sub.tropical")
+N6_perc <- calculate_grouped_percentages(phy, "N6", class_groupings) %>% dplyr::mutate(ecoregion = "sub.tropical")
+
+# Temperate sites
+N1_perc <- calculate_grouped_percentages(phy, "N1", class_groupings) %>% dplyr::mutate(ecoregion = "temperate")
+N2_perc <- calculate_grouped_percentages(phy, "N2", class_groupings) %>% dplyr::mutate(ecoregion = "temperate")
+N3_perc <- calculate_grouped_percentages(phy, "N3", class_groupings) %>% dplyr::mutate(ecoregion = "temperate")
+
+# Sub-polar sites
+C1_perc <- calculate_grouped_percentages(phy, "C1", class_groupings) %>% dplyr::mutate(ecoregion = "sub.polar")
+C2_perc <- calculate_grouped_percentages(phy, "C2", class_groupings) %>% dplyr::mutate(ecoregion = "sub.polar")
+C3_perc <- calculate_grouped_percentages(phy, "C3", class_groupings) %>% dplyr::mutate(ecoregion = "sub.polar")
+
+# Polar sites
+P5_perc  <- calculate_grouped_percentages(phy, "P5", class_groupings)  %>% dplyr::mutate(ecoregion = "polar")
+P6_perc  <- calculate_grouped_percentages(phy, "P6", class_groupings)  %>% dplyr::mutate(ecoregion = "polar")
+P7_perc  <- calculate_grouped_percentages(phy, "P7", class_groupings)  %>% dplyr::mutate(ecoregion = "polar")
+P8_perc  <- calculate_grouped_percentages(phy, "P8", class_groupings)  %>% dplyr::mutate(ecoregion = "polar")
+P9_perc  <- calculate_grouped_percentages(phy, "P9", class_groupings)  %>% dplyr::mutate(ecoregion = "polar")
+P10_perc <- calculate_grouped_percentages(phy, "P10", class_groupings) %>% dplyr::mutate(ecoregion = "polar")
+P11_perc <- calculate_grouped_percentages(phy, "P11", class_groupings) %>% dplyr::mutate(ecoregion = "polar")
+
+# Combine all into a single data frame
+compPerc_site_df <- dplyr::bind_rows(
+  T1_perc, T2_perc, T3_perc,
+  N4_perc, N5_perc, N6_perc,
+  N1_perc, N2_perc, N3_perc,
+  C1_perc, C2_perc, C3_perc,
+  P5_perc, P6_perc, P7_perc, P8_perc, P9_perc, P10_perc, P11_perc
+)
+
+```
+***  
+### Microalgal Relative Abundance 
+__Eukaryotic Microalgae community (EMC)__  
+Here we create plots showing relative abundance of the high-level taxonomic groups across all sampled sited from the tropics to the poles. The taxonomic groups include: dinoflagellates, pennate diatoms, radial centric diatoms, polar centric diatoms, chlorophytes, haptophytes and 'other microalgae.'  
+In this section, a specific order for site samples (`site_order`) is defined.
+
+```{r, CompSiteOrder}
+# Creates new object `EMC_class` that combines the taxa in `EMC` based on their Class level division.
+EMC_class = tax_glom(emc.site, "Class")
+
+# calculates the percentages of each class
+EMC_class_perc = transform_sample_counts(EMC_class, function(OTU) OTU/sum(OTU)*100)
+
+
+# can change threshold - (> 1) currently at 1 % can go to zero if less abundance
+EMC_class_perc_filtered = filter_taxa(EMC_class_perc, function(x) mean(x) > 0, TRUE)
+EMC_class_perc_filtered_df <- psmelt(EMC_class_perc_filtered)
+```
+
+Here `taxonomy_breaks` variable is defined as the reverse order of `emc.classes`, which represents taxonomic classes. The code checks for and removes any duplicate values in `taxonomy_breaks`. The "Sample" and "Class" columns in the `EMC_class_perc_filtered_df` data frame are converted to factors with specific order levels based on `site_order` and `taxonomy_breaks`.
+
+```{r, CompTaxaBreaks}
+taxonomy_breaks <- rev(emc.classes)
+# Check for duplicate values in taxonomy_breaks
+duplicates <- taxonomy_breaks[duplicated(taxonomy_breaks)]
+
+
+# If duplicates are found, remove or adjust them
+if (length(duplicates) > 0) {
+  taxonomy_breaks <- unique(taxonomy_breaks)  # Remove duplicates
+  # Or, adjust the taxonomy_breaks as needed
+}
+
+# Convert the Sample column to a factor with the desired order
+EMC_class_perc_filtered_df$Sample <- factor(EMC_class_perc_filtered_df$Sample, levels = site_order)
+EMC_class_perc_filtered_df$Class <- factor(EMC_class_perc_filtered_df$Class, levels = taxonomy_breaks)
+
+```
+
+In this section, a new column "Ecoregion" is created in the `EMC_class_perc_filtered_df` data frame based on site assignments to different ecoregions (`tropical_sites`, `subtropical_sites`, etc.).
+
+```{r, CompEcoregion}
+# Create a new column "Ecoregion" based on site assignments
+EMC_class_perc_filtered_df$Ecoregion <- ifelse(EMC_class_perc_filtered_df$Sample %in% tropical_sites, ecoregion_categories[1],
+                                                         ifelse(EMC_class_perc_filtered_df$Sample %in% subtropical_sites, ecoregion_categories[2],
+                                                                ifelse(EMC_class_perc_filtered_df$Sample %in% temperate_sites, ecoregion_categories[3],
+                                                                       ifelse(EMC_class_perc_filtered_df$Sample %in% subpolar_sites, ecoregion_categories[4],
+                                                                              ifelse(EMC_class_perc_filtered_df$Sample %in% polar_sites, ecoregion_categories[5], NA)))))
+```
+
+The following code defines the plot named `EMC_Comp.v9` using the `ggplot2` library. The purpose of this plot is to visualize the abundance of different taxa classes across various site samples.  
+1. `ggplot(EMC_class_perc_filtered_df, aes(x = Sample, y = Abundance, fill = Class))` specifies the dataset `(EMC_class_perc_filtered_df)` and mapping aesthetics for the x-axis (Sample), y-axis (Abundance), and the fill color of the bars based on taxonomic "Class."  
+2. `geom_bar(stat = "identity")` creates a bar plot where the height of each bar represents the "Abundance" of a specific taxonomic "Class" for each "Sample." The `stat = "identity"` ensures that the data values are used as-is for bar heights.  
+3. `scale_fill_manual(name = "Taxonomy", values = emc_cols, breaks = taxonomy_breaks)` customizes the fill color scale. It assigns the name "Taxonomy" to the legend. The values parameter specifies the colors to be used from the `emc_cols` palette, and breaks sets the order of legend entries based on the taxonomy hierarchy.  
+4. Aesthetic customizations include defining axis labels, setting the angle, justification, and vertical adjustment of x-axis text, removing the legend title, adjusting text size and color for various plot elements (axes, title, legend, etc.), and removing background elements like grid lines and panel backgrounds.  
+5. `guides(fill = guide_legend(override.aes = list(size=1), ncol=2))` modifies the legend by specifying the legend size and number of columns. The `override.aes` option ensures that the size of legend elements is controlled.  
+6. `facet_grid(. ~factor(Ecoregion, levels = c("Tropical", "Sub-tropical", etc)),scales = ...` creates facets for different ecoregions. Each ecoregion is displayed in a separate plot, and the x-axis scales are adjusted accordingly. 
+  
+Additional theme adjustments are made to improve the appearance of the plot, such as removing background elements and placing facet labels at the bottom.
+
+```{r emcCompPlot}
+EMC_Comp <- ggplot(EMC_class_perc_filtered_df, aes(x = Abundance, y = Sample, fill = Class)) + 
+  geom_bar(stat = "identity") + 
+  scale_fill_manual(name = "Taxonomy", values = emc_cols, breaks = taxonomy_breaks) + 
+  theme_bw() + 
+  ylab("Proportion OTUs") + 
+  xlab("Site") + 
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.4),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 8, color = "black"),
+    plot.title = element_text(size = 10, color = "black"),
+    axis.text.y = element_text(size = 8, color = "black"),
+    axis.title.y = element_text(size = 8, color = "black"),
+    panel.background = element_rect(fill = "transparent"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    legend.background = element_rect(fill = "transparent"),
+    legend.key = element_rect(fill = NA),
+    strip.background = element_blank(),
+    strip.placement = "outside"
+  ) + 
+  guides(fill = guide_legend(override.aes = list(size = 1), ncol = 2)) +
+  facet_wrap(
+    ~ factor(Ecoregion, levels = c("Tropical", "Sub-tropical", "Temperate", "Sub-polar", "Polar")),
+    scales = "free_y",   # Ensure only relevant samples per facet show on the x-axis
+    ncol = 1             # Adjust number of columns for facets
+  ) + 
+  theme(strip.background = element_blank(),  # Remove background of facet labels
+        strip.placement = "outside")  # Position facet labels at the bottom
+
+
+ggsave(
+  filename = here("_plots", "emc_community_composition.pdf"),  # change path/format as needed
+  plot = EMC_Comp,
+  device = "pdf",
+  width = 10, height = 4, dpi = 300
+)
+
+
+EMC_Comp
+```
+
+### Diatom Relative Abundance  
+__Diatom community__  
+Here we create plots showing relative abundance of major diatom taxonomic divisions across all sampled sited from the tropics to the poles.
+
+```{r diaSetup}
+# Diatom Classes
+dia.tax_breaks <- c("Bacillariophyceae", "Coscinodiscophyceae", "Mediophyceae")
+
+# Subset data to include algae
+diatoms <- subset_taxa(emc.site, Class %in% dia.tax_breaks)
+
+# Check for duplicate values in dia.tax_breaks
+duplicates <- dia.tax_breaks[duplicated(dia.tax_breaks)]
+
+# If duplicates are found, remove or adjust them
+if (length(duplicates) > 0) {
+  dia.tax_breaks <- unique(dia.tax_breaks)  # Remove duplicates
+  # Or, adjust the dia.tax_breaks as needed
+}
+
+# create dataframe
+dia.taxa.df <- data.frame(tax_table(diatoms))
+
+# removes all `NA's` in taxonomy.
+dia.tax.clean <- data.frame(tax_table(diatoms))
+```
+
+```{r diaTaxLvl}
+# Creates new object `emc_class` that combines the taxa in `emc` based on their Class level division.
+dia_order = tax_glom(diatoms, "Order")
+#dia_order = tax_glom(diatoms, "Class")
+```
+
+```{r diaTax_check}
+dia.pen_taxa_df <- dia.tax.clean[dia.tax.clean$Class == "Bacillariophyceae",] # change between classes you want to check: "Coscinodiscophyceae", "Mediophyceae"
+dia.order_counts <- table(dia.pen_taxa_df$Order)
+dia.order_names <- names(dia.order_counts)
+
+print(dia.order_names)
+```
+
+```{r diaTaxa_define}
+dia.order.breaks <-c("Bacillariales", "Cymbellales", "Fragilariales", "Licmophorales", "Naviculales", "Plagiogrammales", "Rhabdonematales", "Rhaphoneidales", "Rhopalodiales", "Surirellales", "Unclassified_Class_Bacillariophyceae", #Pennate
+                     "Corethrales", "Coscinodiscales", "Melosirales", "Paraliales", "Rhizosoleniales", "Stellarimales", "Triceratiales", "Unclassified_Class_Coscinodiscophyceae", 
+                     "Anaulales", "Ardissoneales", "Biddulphiales", "Chaetocerotales", "Cymatosirales", "Eupodiscales", "Hemiaulales", "Lithodesmiales", "Probosciales", "Thalassiosirales", "Unclassified_Class_Mediophyceae" #polar.cent
+)
+
+```
+
+```{r diaEcoregion}
+# calculates the percentages of each class
+dia_order_perc = transform_sample_counts(dia_order, function(OTU) OTU/sum(OTU)*100)
+
+# can change threshold - (> 1) currently at 1 % can go to zero if less abundance
+dia_order_perc_filtered = filter_taxa(dia_order_perc, function(x) mean(x) > .01, TRUE)
+dia_order_perc_filtered_df <- psmelt(dia_order_perc_filtered)
+
+# Convert the Sample column to a factor with the desired order
+dia_order_perc_filtered_df$Sample <- factor(dia_order_perc_filtered_df$Sample, levels = site_order)
+dia_order_perc_filtered_df$Order <- factor(dia_order_perc_filtered_df$Order, levels = dia.order.breaks)
+#dia_order_perc_filtered_df$Class <- factor(dia_order_perc_filtered_df$Class, levels = dia.tax_breaks)
+
+# Create a new column "Ecoregion" based on site assignments
+dia_order_perc_filtered_df$Ecoregion <- ifelse(dia_order_perc_filtered_df$Sample %in% tropical_sites, ecoregion_categories[1],
+                                                  ifelse(dia_order_perc_filtered_df$Sample %in% subtropical_sites, ecoregion_categories[2],
+                                                         ifelse(dia_order_perc_filtered_df$Sample %in% temperate_sites, ecoregion_categories[3],
+                                                                ifelse(dia_order_perc_filtered_df$Sample %in% subpolar_sites, ecoregion_categories[4],
+                                                                       ifelse(dia_order_perc_filtered_df$Sample %in% polar_sites, ecoregion_categories[5], NA)))))
+
+```
+
+```{r diaBarPlot}
+
+# Define colour scheme
+dia_cols <- c("#f16a58","#fcdeb4", "#fbb768")
+col.dia <- colorRampPalette(dia_cols)
+
+dia.order.cols <-c(Bacillariales = "#39103a",  Cymbellales  = "#511851", Fragilariales = "#543a7a", Licmophorales = "#6b61a0",
+                   Naviculales = "#988cc2", Plagiogrammales= "#8779B9", Rhabdonematales = "#9073b3", Rhaphoneidales = "#cca1d6", 
+                   Rhopalodiales  =  "#b484bf", Surirellales = "#9164ab", Unclassified_Class_Bacillariophyceae = "#d9bde0", #Pennate
+                  
+                   Corethrales = "#ffebc0", Coscinodiscales = "#ffe09c", Melosirales = "#ffc176", Paraliales = "#F5A83D", 
+                  Rhizosoleniales  = "#F39716", Stellarimales = "#F9CB8B", Triceratiales = "#FBDCB1", Unclassified_Class_Coscinodiscophyceae = "#ffa750", 
+                  
+                  Anaulales = "#FFB199", Ardissoneales  = "#FF430A", Biddulphiales  = "#FF7247", Chaetocerotales  = "#ff8a66", 
+                  Cymatosirales  = "#E03400", Eupodiscales  = "#ed6453", Hemiaulales  = "#c73e34", Lithodesmiales  = "#B2372E", 
+                  Probosciales = "#A2322A", Thalassiosirales = "#822821", Unclassified_Class_Mediophyceae = "#330913" #polar.cent
+)
+
+cols.diatom <- colorRampPalette(dia.order.cols)
+
+
+# Plot
+dia.comp.plot <- ggplot(dia_order_perc_filtered_df, aes(x = Abundance, y = Sample, fill = Order)) + 
+  geom_bar(stat = "identity") + 
+  scale_fill_manual(name = "Taxonomy", values = dia.order.cols, breaks = dia.order.breaks) + 
+  theme_bw() + 
+  ylab("Site-Depth") + 
+  xlab("Proportion ASVs") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust=0.4)) + 
+  theme(legend.title=element_blank()) + 
+  theme(legend.text=element_text(size=8, color="black")) + 
+  theme(plot.title=element_text(size=10, color="black")) + 
+  theme(axis.text.y= element_text(size=8, color="black")) +
+  theme(axis.title.y= element_text(size=8, color="black")) +
+  theme(axis.text.x= element_text()) +
+  theme(panel.background = element_rect(fill="transparent"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.background = element_rect(fill="transparent", colour=NA),
+        legend.background = element_rect(fill="transparent"),
+        legend.key = element_rect(fill = NA)) + 
+  
+  guides(fill = guide_legend(override.aes = list(size=1), ncol=2)) +
+  
+  facet_grid(. ~factor(Ecoregion, levels = c("Tropical", "Sub-tropical", "Temperate", "Sub-polar", "Polar")) ~., scales = "free_y", space = "free_y", labeller = labeller(Ecoregion = label_both)) +
+  theme(strip.background = element_blank(),  # Remove background of facet labels
+        strip.placement = "outside")  # Position facet labels at the bottom
+
+
+ggsave(
+  filename = here("_plots", "diatom_community_composition.pdf"),  # change path/format as needed
+  plot = dia.comp.plot,
+  device = "pdf",
+  width = 10, height = 4, dpi = 300
+)
+
+dia.comp.plot
+```
+
+```{r diaPie}
+dia.pie <- ggplot(dia_order_perc_filtered_df, aes(x = "", y = Abundance, fill = Class)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +  # Convert to polar coordinate
+  theme_void() +  # Remove axes and gridlines
+  facet_wrap(~ Sample) +  # Create facets for each site
+  scale_fill_manual(name = "Taxonomy", values = dia_cols) +  # Assign specific colors to classes
+  theme(legend.title = element_blank()) +  # Remove legend title
+  theme(legend.text = element_text(size = 8, color = "black")) +  # Set legend text properties
+  theme(plot.title = element_text(size = 10, color = "black"))  # Set plot title properties
+
+dia.pie
+
+ggsave(
+  filename = here("_plots", "diatom_community_composition_pie.pdf"),  # change path/format as needed
+  plot = dia.pie,
+  device = "pdf",
+  width = 4, height = 4, dpi = 300
+)
+```
+
+
+### Dinoflagellate Relative Abundance  
+__Dinoflagellate community__  
+Here we create plots showing relative abundance of major dinoflagellate taxonomic divisions across all sampled sited from the tropics to the poles. 
+First we sub-set the `emc.site` data to only dinoflagellates.  
+
+```{r dinoSubset}
+# Subset data to include algae
+dino <- subset_taxa(emc.site, Class == "Dinophyceae") 
+
+# create dataframe
+dino.taxa.df <- data.frame(tax_table(dino))
+
+# removes all `NA's` in taxonomy.
+dino.tax.clean <- data.frame(tax_table(dino))
+tax_table(dino) <- as.matrix(dino.tax.clean)
+
+# Creates new object `emc_class` that combines the taxa in `emc` based on their Class level division.
+dino_order = tax_glom(dino, "Order")
+
+# calculates the percentages of each class
+dino_order_perc = transform_sample_counts(dino_order, function(OTU) OTU/sum(OTU)*100)
+
+# can change threshold - (> 1) currently at 1 % can go to zero if less abundance
+dino_order_perc_filtered = filter_taxa(dino_order_perc, function(x) mean(x) > .01, TRUE)
+dino_order_perc_filtered_df <- psmelt(dino_order_perc_filtered)
+
+# Convert the Sample column to a factor with the desired order
+dino_order_perc_filtered_df$Sample <- factor(dino_order_perc_filtered_df$Sample, levels = site_order)
+#dino_order_perc_filtered_df$Order <- factor(dino_order_perc_filtered_df$Order, levels = dia.taxonomy_breaks)
+# Define ecoregion categories
+
+# Create a new column "Ecoregion" based on site assignments
+dino_order_perc_filtered_df$Ecoregion <- ifelse(dino_order_perc_filtered_df$Sample %in% tropical_sites, ecoregion_categories[1],
+                                                  ifelse(dino_order_perc_filtered_df$Sample %in% subtropical_sites, ecoregion_categories[2],
+                                                         ifelse(dino_order_perc_filtered_df$Sample %in% temperate_sites, ecoregion_categories[3],
+                                                                ifelse(dino_order_perc_filtered_df$Sample %in% subpolar_sites, ecoregion_categories[4],
+                                                                       ifelse(dino_order_perc_filtered_df$Sample %in% polar_sites, ecoregion_categories[5], NA)))))
+
+```
+  
+Here we use the sub-set dinoflagellate data to create stacked bar charts with the relative abundance of taxonomic groups.
+  
+```{r dinoBarPlot}
+
+dino_cols <- c("#11616A",  "#96E5EE", "#1DA1AF", "#00549E", "#ADD9FF", "#0065BD", "#203075", "#A1BBE3")
+cols.dia <- colorRampPalette(dino_cols)
+# Plot
+dino <- ggplot(dino_order_perc_filtered_df, aes(x = Abundance, y = Sample, fill = Order)) + 
+  geom_bar(stat = "identity") + 
+  scale_fill_manual(name = "Taxonomy", values = dino_cols) + 
+  theme_bw() + 
+  ylab("Site-Depth") + 
+  xlab("Proportion ASVs") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust=0.4)) + 
+  theme(legend.title=element_blank()) + 
+  theme(legend.text=element_text(size=8, color="black")) + 
+  theme(plot.title=element_text(size=10, color="black")) + 
+  theme(axis.text.y= element_text(size=8, color="black")) +
+  theme(axis.title.y= element_text(size=8, color="black")) +
+  theme(axis.text.x= element_text()) +
+  theme(panel.background = element_rect(fill="transparent"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.background = element_rect(fill="transparent", colour=NA),
+        legend.background = element_rect(fill="transparent"),
+        legend.key = element_rect(fill = NA)) + 
+  
+  guides(fill = guide_legend(override.aes = list(size=1), ncol=1)) +
+  
+  facet_grid(. ~factor(Ecoregion, levels = c("Tropical", "Sub-tropical", "Temperate", "Sub-polar", "Polar")) ~., scales = "free_y", space = "free_y", labeller = labeller(Ecoregion = label_both)) +
+  theme(strip.background = element_blank(),  # Remove background of facet labels
+        strip.placement = "outside")  # Position facet labels at the bottom
+
+ggsave(
+  filename = here("_plots", "dinoflagellate_community_composition_pie.pdf"),  # change path/format as needed
+  plot = dino,
+  device = "pdf",
+  width = 8, height = 4, dpi = 300
+)
+
+dino
+
+```
+  
+Here we use the same sub-set dinoflagellate data to create pie charts with the relative abundance of taxonomic groups. These will be plotted over the site map to highlight the changes down the sampled latitudinal gradient.  
+  
+```{r dinoPieChart}
+dino.pie <- ggplot(dino_order_perc_filtered_df, aes(x = "", y = Abundance, fill = Order)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +  # Convert to polar coordinate
+  theme_void() +  # Remove axes and gridlines
+  facet_wrap(~ Sample) +  # Create facets for each site
+  scale_fill_manual(name = "Taxonomy", values = dino_cols) +  # Assign specific colors to classes
+  theme(legend.title = element_blank()) +  # Remove legend title
+  theme(legend.text = element_text(size = 8, color = "black")) +  # Set legend text properties
+  theme(plot.title = element_text(size = 10, color = "black"))  # Set plot title properties
+
+ggsave(
+  filename = here("_plots", "dinoflagellate_community_composition_pie.pdf"),  # change path/format as needed
+  plot = dino.pie,
+  device = "pdf",
+  width = 4, height = 4, dpi = 300
+)
+
+dino.pie
+```
+
+### {-}
+
+***  
+
+## Microalgal Distribution {.tabset .tabset-fade}  
+### Data Preparation   
+Here the goal is to create a Dendrogram and heatmap that summarises the bredth of microalgae taxa present across ecoregions:  
+* A Dendrogram will all the species that occur across all the ecoregions. This will then be styled in Adobe Illustrator, with dots at the exterior to show which ecoregion the families all occur in, based on the heatmap also created from this data.  
+  
+* `dendro_emc <- merge_samples()`: This line merges the data in `waterSamples_filtered` based on the `ecoregion` column and stores the result in `dendro_emc`.  
+* `dendro_emc <- subset_taxa()`: Here, it subsets the data in `dendro_emc` based on the condition where the `R5` column's values are present in the `emc.classes` vector, updating `dendro_emc`.  
+* `dendro_emc <- filter_taxa()`: This line filters the data in `dendro_emc`, keeping only those rows where the sum of values in each row is greater than 0.  
+* We then convert the taxonomic table within `dendro_emc` into a data frame (`dendro_emc.df`) and make a copy of it as `dendro_emc.clean.` It then converts `dendro_emc.clean` to a matrix and assigns it to the taxonomic table of `dendro_emc`. Finally, it updates `dendro_emc.clean` by removing any NAs.  
+* Finally we define a vector `taxo.divisions` with new column names for taxonomic divisions. Then, it assigns these column names to `dendro_emc.clean` and updates the taxonomic table of `dendro_emc` using `dendro_emc.clean` as a matrix.
+
+```{r DendroSetup}
+# Merge by ecoregion
+dendro_emc <- merge_samples(waterSamples_filtered, "ecoregion")
+# Subset to R5 level
+dendro_emc <- subset_taxa(dendro_emc, R5 %in% emc.classes)
+# Clean
+dendro_emc <- filter_taxa(dendro_emc, function(x) sum(x) > 0, TRUE)
+
+# Convert to data frame 
+dendro_emc.df <- data.frame(tax_table(dendro_emc))
+dendro_emc.clean <- data.frame(tax_table(dendro_emc)) 
+tax_table(dendro_emc) <- as.matrix(dendro_emc.clean)
+dendro_emc.clean <- update_taxa_na(dendro_emc.clean) # run function to remove NAs
+
+# Define new column names
+taxo.divisions <- c("Domain", "Supergroup", "Division", "Sub.division", "Class", "Order", "Family", "Genus", "Species")
+
+colnames(dendro_emc.clean) <- taxo.divisions
+tax_table(dendro_emc) <- as.matrix(dendro_emc.clean)
+```
+    
+* Next, assign values to `ecoregion`, `type`, and `ecosystem` columns in the sample data associated with `dendro_emc`.  
+  
+* 'ecoregion' is assigned values: "polar", "sub-tropical", "sub-polar", "temperate", "tropical".  
+* 'type' is assigned values: "water", "water", "water", "water", "water".  
+* 'ecosystem' is assigned values: "coastal", "coastal", "coastal", "coastal", "coastal".  
+* Removes columns from the sample data of dendro_emc: 'sampleID', 'siteID', 'point', 'replicate', and 'location' columns are all removed.
+  
+``` {r DendroDataSort}
+sample_data(dendro_emc)$ecoregion <- c("polar", "sub-tropical", "sub-polar", "temperate", "tropical")
+sample_data(dendro_emc)$type <- c("water", "water", "water", "water", "water")
+sample_data(dendro_emc)$ecosystem <- c("coastal", "coastal", "coastal", "coastal", "coastal")
+sample_data(dendro_emc)$sampleID <- NULL
+sample_data(dendro_emc)$siteID <- NULL
+sample_data(dendro_emc)$point <- NULL
+sample_data(dendro_emc)$replicate <- NULL
+sample_data(dendro_emc)$location <- NULL
+sample_data(dendro_emc)
+
+```
+### Dendrogram Plot
+__All Ecoregions Dendrogram__  
+Now get an initial list of all families that occur across all ecoregions, broken out into taxonomic-functional groups to build the dendrogram.
+
+Run this segment on the V9 region data to get complete list of EM taxa detected.
+
+``` {r DendroLists}
+#Removing Unclassified families
+remove_unclass <- function(data_frame) {
+  # Filter out 'unclassified' entries from the 'Family' column
+  filtered_data_frame <- data_frame %>%
+    filter(!grepl("unclassified", Family, ignore.case = TRUE))
+  
+  return(filtered_data_frame)
+}
+
+#Dinflagellates
+#dendro_dino <- subset_taxa(dendro_emc, Class %in% dinoflagellates)
+#taxa_dino <- data.frame(tax_table(dendro_dino))
+#tally_dino_fam <- taxa_dino %>% group_by(Sub.division, Class, Order, Family) %>% tally()
+#tally_dino_fam <- remove_unclass(tally_dino_fam)
+#print(tally_dino_fam$Family)
+
+#Diatoms
+#dendro_diatom <- subset_taxa(dendro_emc, Class %in% diatoms)
+#taxa_diatom <- data.frame(tax_table(dendro_diatom))
+#tally_diatom_fam <- taxa_diatom %>% group_by(Sub.division, Class, Order, Family) %>% tally()
+#tally_diatom_fam <- remove_unclass(tally_diatom_fam)
+#print(tally_diatom_fam$Family)
+
+#Chlorophtes
+#dendro_chloro <- subset_taxa(dendro_emc, Class %in% chlorophytes)
+#taxa_chloro <- data.frame(tax_table(dendro_chloro))
+#tally_chloro_fam <- taxa_chloro %>% group_by(Sub.division, Class, Order, Family) %>% tally()
+#tally_chloro_fam <- remove_unclass(tally_chloro_fam)
+#print(tally_chloro_fam$Family)
+
+#Haptophtes
+#dendro_hapto <- subset_taxa(dendro_emc, Class %in% haptophytes)
+#taxa_hapto <- data.frame(tax_table(dendro_hapto))
+#tally_hapto_fam <- taxa_hapto %>% group_by(Sub.division, Class, Order, Family) %>% tally()
+#tally_hapto_fam <- remove_unclass(tally_hapto_fam)
+#print(tally_hapto_fam$Family)
+
+#Other
+#dendro_other <- subset_taxa(dendro_emc, Class %in% other)
+#taxa_other <- data.frame(tax_table(dendro_other))
+#tally_other_fam <- taxa_other %>% group_by(Sub.division, Class, Order, Family) %>% tally()
+#tally_other_fam <- remove_unclass(tally_other_fam)
+#print(tally_other_fam$Family)
+```
+  
+***  
+  
+___Define Dendrogram structure___  
+Here the structure of the Dendrogram is defined, based off the lists created in the previous code block. Double/triple check your final list and structure. Remember this is not a phylogeny.   
+
+```{r dendroStructure}
+dendro_text_all <- "(((Dinophyceae_XX), (Dinophysiaceae, Oxyphysiaceae), (Ceratiaceae, Gonyaulacaceae, Lingulodiniaceae, Protoceratiaceae, Pyrocystaceae), (Gymnodiniaceae, Kareniaceae, Warnowiaceae), (Amphidiniopsidaceae, Amphidomataceae, Blastodiniaceae, Heterocapsaceae, Kryptoperidiniaceae, Peridiniales_X, Peridiniopsidaceae, Protoperidiniaceae, Thoracosphaeraceae), (Prorocentraceae, Suessiaceae, Suessiales_X, Symbiodiniaceae), (Torodiniaceae)), (((Bacillariaceae), (Cymbellaceae, Gomphonemataceae), (Fragilariaceae), (Licmophoraceae),(Naviculaceae, Pleurosigmataceae, Sellaphoraceae), (Plagiogrammaceae), (Grammatophoraceae), (Asterionellopsidaceae), (Rhopalodiaceae), (Surirellaceae)),((Corethraceae), (Coscinodiscaceae, Heliopeltaceae, Hemidiscaceae), (Hyalodiscaceae, Melosiraceae), (Paraliaceae), (Rhizosoleniaceae), (Stellarimaceae), (Triceratiaceae)),((Anaulaceae), (Ardissoneaceae), (Biddulphiaceae), (Chaetocerotaceae, Leptocylindraceae), (Cymatosiraceae), (Parodontellaceae), (Hemiaulaceae), (Lithodesmiaceae), (Probosciaceae),(Lauderiaceae), (Skeletonemaceae, Stephanodiscaceae, Thalassiosiraceae)),(((Euglenida_XX, Keelungiidae), (Euglenaceae, Eutreptiidae)), (Parmales_env_2, Parmales_env_3, Triparmaceae), ((Chrysophyceae_Clade-EC2H_X, Chrysophyceae_Clade-EC2I_X), (Ochromonadaceae), (Paraphysomonadaceae, Paraphysomonadales_Clade_EC1Ga)), (Dictyochales, Florenciellales, Pedinellales, Rhizochromulinales), ((Pelagomonadaceae, Pelagomonadales_Clade_A,  Pelagomonadales_Clade_B), (Chrysocystaceae, Sarcinochrysidaceae)), (Pinguiochrysidaceae), (Raphidophyceae_XX))), ((Pavlovaceae), ((Noelaerhabdaceae), (Phaeocystaceae), (Chrysochromulinaceae, Prymnesiaceae, Prymnesiales_X, Prymnesiophyceae_Clade_B4), (Braarudosphaeraceae))), ((Chlorodendraceae), (Chaetopeltidales_X, Chlamydomonadales_X, Sphaeropleales_X), (Chloropicaceae), ((Crustomastigaceae, Dolichomastigaceae), (Bathycoccaceae, Mamiellaceae)), (Nephroselmidales_X), (Marsupiomonadaceae), ((Pycnococcaceae), (Pterospermaceae, Pyramimonadaceae, Pyramimonadales_X)), ((Microthamniales_X), (Trebouxiophyceae_XX), (Watanabea-Clade_X))));"
+```
+  
+***  
+  
+___Plot Dendrogram___   
+This next code snippet reads a phylogenetic tree from text, sets a specific text size, and then plots the dendrogram with a 'fan' layout, adjusting the text size of labels according to the defined text_size.  
+  
+* `dendro <- ape::read.tree(text = dendro_text_all)`: Reads a phylogenetic tree from a text string (`dendro_text_all`) using the read.tree function from the `ape` package. The resulting tree is stored in the `dendro` variable.  
+* `text_size <- 0.5`: Sets the variable `text_size` to a value of 0.4, specifying the size for text labels in the dendrogram.  
+* `plot(dendro, type = "fan", cex = text_size)`: Plots the dendrogram represented by the `dendro` tree object.  
+  * `type = fan` specifies the dendrogram type as a 'fan' layout.  
+  * `cex = text_size` sets the text size to the previously defined `text_size` value (0.5) for the dendrogram labels.  
+* We then save a `.pdf` version of the plat to our `_plots` sub-directory.
+
+```{r dendroPlot}
+# Read the tree
+dendro <- ape::read.tree(text = dendro_text_all)
+
+# Specify text size
+text_size <- 0.4
+
+# Plot the dendrogram with customized settings, and save as PDF
+pdf("_plots/dendrogram_plot.pdf", width = 6, height = 6)  # Adjust width/height as needed
+ape::plot.phylo(dendro, type = "fan", cex = 0.4)
+dev.off()
+
+
+# Now plot for display in the document
+ape::plot.phylo(dendro, type = "fan", cex = text_size)
+```
+  
+### Presence heatmap
+
+```{r presence in ecoregion}
+# Step 1: Agglomerate taxa at the Family level (or another taxonomic level if needed)
+dendro_family <- tax_glom(dendro_emc, taxrank = "Family")
+
+# Step 2: Extract abundance matrix and convert to presence/absence
+otu_pa <- as.data.frame(otu_table(dendro_family))
+if (taxa_are_rows(dendro_family)) {
+  otu_pa <- t(otu_pa)  # Make samples rows
+}
+otu_pa[otu_pa > 0] <- 1  # Convert counts to presence/absence
+otu_pa <- as.data.frame(otu_pa)
+otu_pa$SampleID <- rownames(otu_pa)
+
+# Step 3: Extract sample data and join with presence/absence
+sample_df <- as.data.frame(sample_data(dendro_family))
+sample_df$SampleID <- rownames(sample_df)
+
+merged_df <- left_join(otu_pa, sample_df[, c("SampleID", "ecoregion")], by = "SampleID")
+
+# Step 4: Pivot longer to tidy format
+otu_long <- pivot_longer(
+  merged_df, 
+  cols = -c(SampleID, ecoregion),
+  names_to = "Taxa",
+  values_to = "Presence"
+)
+
+# Step 5: Group by taxon and ecoregion, summarise to presence (1 if present in any sample)
+presence_matrix <- otu_long %>%
+  group_by(Taxa, ecoregion) %>%
+  summarise(Presence = as.integer(any(Presence > 0)), .groups = "drop") %>%
+  pivot_wider(names_from = ecoregion, values_from = Presence, values_fill = 0)
+
+# Step 6 (optional): Add taxonomy names back if needed
+taxa_names <- as.data.frame(tax_table(dendro_family))
+taxa_names$Taxa <- rownames(taxa_names)
+
+presence_matrix <- left_join(taxa_names[, c("Family", "Taxa")], presence_matrix, by = "Taxa") %>%
+  select(-Taxa) %>%
+  distinct()
+```
+  
+  Here we plot the presence of each group across ecoregions to add to our dendrogram. Then save it out into out `_plots` folder.
+  
+```{r presence heatmap}
+# Ecoregion colours
+ecoregion_colours <- c("tropical" = "#f0e097", "sub-tropical" = "#cfe5b2", "temperate" = "#88b945", "sub-polar" = "#a9dac9", "polar" = "#89b7e5", absent = "white")
+
+# Set ecoregion levels to exactly match your dataset
+all_ecoregions <- c("tropical", "sub-tropical", "temperate", "sub-polar", "polar")
+
+#Convert to long format
+heatmap_data <- presence_matrix %>%
+  pivot_longer(-Family, names_to = "Ecoregion", values_to = "Presence") %>%
+  mutate(
+    EcoregionColor = ifelse(Presence == 1, Ecoregion, "absent")  # Will be used for coloring
+  )
+
+
+# Ensure the Ecoregion column is a factor with all desired levels
+heatmap_data$Ecoregion <- factor(heatmap_data$Ecoregion, levels = all_ecoregions)
+
+#
+taxa.presence.heatmap<- ggplot(heatmap_data, aes(x = Ecoregion, y = Family, fill = EcoregionColor)) +
+  geom_tile(color = "gray90", linewidth = 0.1) +
+  scale_fill_manual(values = ecoregion_colours , name = "Presence") +
+  labs(x = "Ecoregion", y = "Family", title = "Presence of Taxa per Ecoregion") +
+  theme_minimal(base_size = 7) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right"
+  )
+
+
+ggsave(
+  filename = here("_plots", "taxa_across_ecoregions.pdf"),  # change path/format as needed
+  plot = taxa.presence.heatmap,
+  device = "pdf",
+  width = 4, height = 8, dpi = 300
+)
+
+taxa.presence.heatmap
+
+```
+
+
+###{-}  
+
+***
+
+## Indicator species  {.tabset .tabset-fade}  
+
+This code segment processes data from molecular analyses of microbial communities in ice samples. It first assigns unique identifiers to individual sequence variants (ASVs), then filters for indicator species using statistical methods. Subsequently, it selects the top 20 abundant ASVs for further analysis. Finally, it visualizes the abundance patterns of these ASVs across different ice conditions using a heatmap.  
+
+__How do the stats work?__  
+the statistical method used to filter for indicator species is the `multipatt` function from the `indicspecies` package. This function is employed to identify indicator species for each level within a factor, which in this case is the factor "location". The `multipatt` function assesses the association between species and groups (in this case, locations) by calculating the indicator value (IndVal) statistic.  
+The IndVal statistic quantifies the strength and significance of the association between a species and a group, indicating whether a species is indicative of a particular group. It ranges from 0 to 1, with higher values indicating stronger association. Additionally, p-values are computed to assess the significance of the associations.  
+In the provided code, the control argument is specified within the `multipatt` function to set parameters for the permutation test used to calculate the p-values. Specifically, the number of permutations is set to 999 (nperm=999), indicating the number of random permutations used to generate the null distribution for assessing significance.  
+After running the `multipatt` function, non-significant results are filtered out based on a significance threshold (p.value < 0.05), retaining only indicator species that show statistically significant associations with the specified factor (location) at the given significance level.  
+Overall, the `multipatt` function provides a robust statistical framework for identifying indicator species associated with specific environmental factors, allowing for the characterization of microbial communities in relation to environmental gradients or conditions.
+
+```{r define}
+heatmap.grad <- c(
+    "#f9f9f9", "#c2df7f",  "#66b347", "#4eb3cb", "#4380b3", "#2e4a7f",  "#1a274b"
+    )
+cols.heat <- colorRampPalette(heatmap.grad)
+print_pal(heatmap.grad)
+```
+
+### All Indicator sp.  
+
+```{r heatmap all}
+
+emc.waterSamples <- phyloseq::subset_taxa(waterSamples_filtered, R5 %in% emc.classes) #Subset to emc classes (R5)
+taxa.df <- data.frame(phyloseq::tax_table(emc.waterSamples)) # update dataframe
+tax.clean <- data.frame(phyloseq::tax_table(emc.waterSamples)) # removes all `NA's` in taxonomy.
+# Convert otu_table to a data frame
+emc.waterSamples.df <- as.data.frame(otu_table(waterSamples_filtered))
+
+# Convert sample data to a data frame
+emc.waterSamples.sd <- as.data.frame(sample_data(waterSamples_filtered))
+
+# Set seed for reproducibility
+set.seed(56)
+
+# Use indicspecies package to find indicator species
+indval.waterSampAlg <- multipatt(emc.waterSamples.df, emc.waterSamples.sd$location, control=how(nperm=999), duleg = TRUE)
+
+# Convert output to a data frame
+indval.waterSampAlg.df <- as.data.frame(indval.waterSampAlg$sign)
+
+# Convert rownames to a column using data.table package
+indval.waterSampAlg.df2 <- setDT(indval.waterSampAlg.df, keep.rownames = TRUE)[]
+
+# Filter out non-significant results
+indval.waterSampAlg.df.filtered <- indval.waterSampAlg.df2[which(indval.waterSampAlg.df2$p.value < 0.05),]
+
+# Summarize the filtered results
+indval.waterSampAlg.summary <- indval.waterSampAlg.df.filtered %>% 
+                        group_by(index) %>% 
+                        summarise(count = length(index))
+
+# Get important taxa
+otunames <- indval.waterSampAlg.df.filtered$rn
+r <- rownames(tax_table(emc.waterSamples)) %in% otunames
+imp.taxa <- as.data.frame(as.matrix(tax_table(emc.waterSamples)[r, ]))
+imp.taxa <- rownames_to_column(imp.taxa)
+indval.waterSampAlg.df.filtered.1 <- left_join(indval.waterSampAlg.df.filtered, imp.taxa, by = c("rn" = "rowname"))
+
+# Create phyloseq object with only the top 20 ASVs
+indicator.ps <- prune_taxa(as.character(otunames), emc.waterSamples)
+sorted_asvs <- names(sort(taxa_sums(indicator.ps), decreasing = TRUE))
+top_20_asvs <- sorted_asvs[1:12]
+waterSampAlg_top_20 <- prune_taxa(top_20_asvs, indicator.ps)
+
+# Convert phyloseq object to a melted dataframe
+waterSampAlg_rare_perc_fil.melt <- psmelt(waterSampAlg_top_20)
+
+# Summarise data
+summary_data <- waterSampAlg_rare_perc_fil.melt %>% 
+            group_by(ecoregion, OTU, R9) %>% 
+            summarise(mean.Abundance = mean(Abundance))
+
+# Reorder the 'ecoregion' factor to the desired order
+ecoregion_order <- c("tropical", "sub-tropical", "temperate", "sub.polar", "polar")
+
+# Ensure 'ecoregion' is a factor and set the levels to the specific order
+summary_data$ecoregion <- factor(summary_data$ecoregion, levels = ecoregion_order)
+
+# Join the summary_data with the asv_df based on OTU to get the corresponding ASV labels
+summary_data_with_asv <- left_join(summary_data, asv_df, by = c("OTU" = "DNA_Sequence"))
+
+#- Save results to CSV files
+write.csv(summary_data_with_asv, 
+         file = "_exports/IndicatorSpecies_Summary.csv")
+
+```
+
+```{r plot}
+# Create the heatmap plot with updated y-axis labels (using the ASV ID from asv_df)
+waterSampAlg_heat <- ggplot(summary_data_with_asv, aes(x = ecoregion, y = ASV_ID, fill = mean.Abundance)) +
+  geom_tile() +
+  scale_fill_gradientn(colours = cols.heat(100), 
+                       trans = "sqrt",
+                       na.value = "gray90"
+                       ) +
+  labs(title = "Top 12 ASVs based on ecoregion",
+       x = "Ecoregion", y = "ASV ID") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5, hjust=1)) 
+
+# Save the heatmap plot as a PDF
+ggsave("_plots/waterSampAlg_heatmap.pdf", plot = waterSampAlg_heat, device = "pdf", width = 8, height = 4)
+
+# Display the heatmap
+waterSampAlg_heat
+
+```
+  
+  ***  
+  
+### Dinoflagellate Indicators    
+__Dino Data sorting__
+This chunk filters the indicator species data to retain only ASVs belonging to the class `Dinophyceae`. It then identifies the top 12 most abundant Dinophyceae ASVs and calculates their mean relative abundance across ecoregions. The final dataset is structured and ready for plotting.  
+
+```{r indicator Dino data}
+# --- Subset Dinophyceae ASVs from indicator species phyloseq object ---
+
+# 1. Get all taxa names from indicator.ps where taxonomic Class (R5) is "Dinophyceae"
+dinophyceae_taxa <- taxa_names(indicator.ps)[
+  tax_table(indicator.ps)[, "R5"] == "Dinophyceae"
+]
+
+# 2. Create new phyloseq object containing only Dinophyceae ASVs
+dinophyceae.ps <- prune_taxa(dinophyceae_taxa, indicator.ps)
+
+# 3. Select top 12 most abundant ASVs based on total abundance
+top_20_dino_asvs <- names(sort(taxa_sums(dinophyceae.ps), decreasing = TRUE))[1:12]
+
+# 4. Subset to only those top 12 ASVs
+top_20_dino_ps <- prune_taxa(top_20_dino_asvs, dinophyceae.ps)
+
+# 5. Convert to long-format dataframe for plotting (adds metadata and abundance)
+dinophyceae_melt <- psmelt(top_20_dino_ps)
+
+# 6. Summarise abundance by ecoregion, OTU, and higher taxonomic level (R9)
+dinophyceae_summary <- dinophyceae_melt %>%
+  group_by(ecoregion, OTU, R9) %>%
+  summarise(mean.Abundance = mean(Abundance), .groups = "drop")
+
+# 7. Set the desired order for ecoregion on the x-axis
+ecoregion_order <- c("tropical", "sub-tropical", "temperate", "sub.polar", "polar")
+dinophyceae_summary$ecoregion <- factor(dinophyceae_summary$ecoregion, levels = ecoregion_order)
+
+# 8. Join in ASV IDs from external lookup table (asv_df) for nicer y-axis labels
+dinophyceae_summary_with_asv <- left_join(dinophyceae_summary, asv_df, by = c("OTU" = "DNA_Sequence"))
+
+```
+  
+    
+__Dinoflagellate Plot__  
+This chunk generates a heatmap to visualise the distribution and relative abundance of the top 12 Dinophyceae ASVs across five marine ecoregions. The heatmap uses a colour gradient (sqrt-transformed) to reflect abundance intensity, and outputs the plot to PDF.  
+  
+```{r Indicator Dino plot}
+# --- Create heatmap of top 12 Dinophyceae ASVs across ecoregions ---
+
+dinophyceae_heat <- ggplot(dinophyceae_summary_with_asv, aes(x = ecoregion, y = ASV_ID, fill = mean.Abundance)) +
+  geom_tile() +  # Tile plot for heatmap effect
+  scale_fill_gradientn(
+    colours = cols.heat(100),  # Custom colour palette
+    trans = "sqrt",            # Square-root transform to improve visibility
+    na.value = "gray90"        # Color for NA/missing values
+  ) +
+  labs(
+    title = "Dinophyceae ASVs by Ecoregion",
+    x = "Ecoregion",
+    y = "ASV ID"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 1)
+  )
+
+# Save to PDF
+ggsave("_plots/dinophyceae_heatmap.pdf",
+       plot = dinophyceae_heat, device = "pdf", width = 4, height = 4)
+
+# Show the plot in RStudio
+dinophyceae_heat
+
+```
+  
+  ***  
+  
+### Diatom Indicators  
+__Diatom data sorty__  
+This chunk filters the indicator species data to retain only ASVs belonging to diatom classes (as defined in your `class_groupings$diatoms`). It then selects the top 12 most abundant diatom ASVs and summarises their mean relative abundance across ecoregions. This prepares the dataset for visualisation.  
+
+```{r indicator Diatoms data}
+# --- Subset Diatom ASVs from indicator species phyloseq object ---
+
+# 1. Define the diatom classes from your class groupings list
+diatom_classes <- class_groupings$diatoms
+
+# 2. Extract ASVs where the Class (R5) matches any of the diatom classes
+diatom_taxa <- taxa_names(indicator.ps)[
+  tax_table(indicator.ps)[, "R5"] %in% diatom_classes
+]
+
+# 3. Create a new phyloseq object containing only diatom ASVs
+diatom.ps <- prune_taxa(diatom_taxa, indicator.ps)
+
+# 4. Identify the top 12 most abundant diatom ASVs
+top_20_diatom_asvs <- names(sort(taxa_sums(diatom.ps), decreasing = TRUE))[1:12]
+
+# 5. Subset to only those top 12 ASVs
+top_20_diatom_ps <- prune_taxa(top_20_diatom_asvs, diatom.ps)
+
+# 6. Convert phyloseq object to long-format dataframe
+diatom_melt <- psmelt(top_20_diatom_ps)
+
+# 7. Summarise mean abundance by ecoregion, OTU, and higher taxonomic level (R9)
+diatom_summary <- diatom_melt %>%
+  group_by(ecoregion, OTU, R9) %>%
+  summarise(mean.Abundance = mean(Abundance), .groups = "drop")
+
+# 8. Reorder ecoregion factor levels for consistent x-axis
+ecoregion_order <- c("tropical", "sub-tropical", "temperate", "sub.polar", "polar")
+diatom_summary$ecoregion <- factor(diatom_summary$ecoregion, levels = ecoregion_order)
+
+# 9. Add ASV ID labels from external lookup (asv_df)
+diatom_summary_with_asv <- left_join(diatom_summary, asv_df, by = c("OTU" = "DNA_Sequence"))
+
+```
+  
+  __Diatom Plot__  
+  This chunk creates a heatmap to visualise the distribution and relative abundance of the top 12 diatom ASVs across marine ecoregions. Colour intensity (sqrt-transformed) reflects the average abundance of each ASV per ecoregion.  
+  
+```{r Diatom plot} 
+# --- Generate heatmap of top 12 diatom ASVs across ecoregions ---
+
+diatom_heat <- ggplot(diatom_summary_with_asv, aes(x = ecoregion, y = ASV_ID, fill = mean.Abundance)) +
+  geom_tile() +  # Tile plot for heatmap effect
+  scale_fill_gradientn(
+    colours = cols.heat(100),  # Custom gradient
+    trans = "sqrt",            # Square-root transform for better visual scaling
+    na.value = "gray90"        # Color for NA/missing values
+  ) +
+  labs(
+    title = "Diatom ASVs by Ecoregion",
+    x = "Ecoregion",
+    y = "ASV ID"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 1)
+  )
+
+# Save plot to PDF
+ggsave("_plots/diatom_heatmap.pdf",
+       plot = diatom_heat, device = "pdf", width = 4, height = 4)
+
+# Display the plot
+diatom_heat
+
+```
+
+## dbRDA  
+(Distance Based Redundancy analysis)  
+
+### dbRDA with site variables  
+**What is a dbRDA?** Distance-based redundancy analysis (dbRDA)  is a multivariate statistical technique commonly used in ecological studies to understand the relationship between environmental variables and multivariate data, such as species composition or community structure. Unlike other ordination techniques like PCA (Principal Component Analysis) or NMDS (Non-metric Multidimensional Scaling), dbRDA specifically focuses on environmental factors that best explain the variation in multivariate datasets, taking into account the dissimilarities or distances among samples.  
+  
+**Primary output:** this is usually an ordination plot that represents samples or species in a reduced-dimensional space. This plot visualises how well the environmental predictors align or correlate with the observed patterns in the multivariate data.  
+  By examining the arrangement of samples or species in the ordination space, one can interpret the associations or relationships between the environmental variables and the observed variability in the dataset. Variables with a stronger influence will be more closely related to the positioning of samples/species in the ordination plot.
+
+Features of the sites/samples used  include:  
+  
+* Sea Surface Temperature
+* Latitude
+* Approximate distance from shore  
+* Sampling date
+
+```{r Define variables}
+# define variables for distance based redundancy analysis !CHANGE THESE TO MATCH WHAT YOU ARE COMPARING from the loaded .csv file!
+vars <- c("ecoregion","long","latitude","apprx.dist.frm.land","ave.temp","ave.sal", "month", "year")
+```
+
+### Checking data  
+__Data Distributions__  
+In this code chunk, we are examining the distribution of variables such as "ecoregion","long","latitude","apprx.dist.frm.land","ave.temp","ave.sal", "month", "year". The distribution of each variable is visualised using quantile-quantile plots (Q-Q plots). These plots provide insights into the normality of the data distribution.  
+
+```{r nutrient_dataDistributions}
+
+### ---------------Plot Data Distributions ---------------------###
+dist.plots <- list()
+
+# Loop through each variable to create ggplot objects
+for (var in vars) {
+  plot_title <- paste0(str_replace(var, "\\.", " "), "Data Distribution")
+  p <- ggqqplot(siteData[[var]]) + 
+    labs(title = plot_title, y = "measure") +
+    theme(axis.text = element_text(size = 6),
+          axis.title = element_text(size = 8),
+          plot.title = element_text(size = 8))
+  
+  dist.plots[[var]] <- p
+}
+
+# Arrange plots in a grid with 4 columns
+dist_grid_arrange <- grid.arrange(grobs = dist.plots, ncol = 3)
+dist_grid_arrange
+```
+
+
+  
+__Shapiro Wilks Tests__  
+This code chunk performs the Shapiro-Wilks test for normality on the nutrient variables. For each variable, it checks if there is enough variability in the data to perform the test. The results of the Shapiro-Wilks test, including the test statistic, p-value, and method, are displayed in a dataframe. Additionally, the dataframe indicates whether the data follows a normal distribution based on a significance level of 0.05.  
+
+```{r siteData_shapiroWilksTest}
+### ---------------Shapiro wilks test ---------------------###
+
+# Initialize a list to store the results
+data_shapiro_results <- list()
+
+# Loop through each variable and perform the Shapiro-Wilk test
+for (var in vars) {
+  # Check if there is variability in the data
+  if (length(unique(siteData[[var]])) > 1) {
+    # Perform the Shapiro-Wilk test
+    test_result <- shapiro.test(siteData[[var]])
+    data_shapiro_results[[var]] <- test_result
+  } else {
+    # Store a message indicating no variability in the data
+    data_shapiro_results[[var]] <- "No variability in the data"
+  }
+}
+
+# Initialize empty lists to store the results
+var_list <- c()
+statistic_list <- c()
+p_value_list <- c()
+method_list <- c()
+
+# Loop through each isolate and acid to retrieve the results
+  for (var in names(data_shapiro_results)) {
+    # Check if the test result is a list
+    if (is.list(data_shapiro_results[[var]])) {
+      # Append the isolate and acid name
+      var_list <- c(var_list, var)
+      # Extract the statistic, p-value, and method from the test result
+      statistic_list <- c(statistic_list, data_shapiro_results[[var]]$statistic)
+      p_value_list <- c(p_value_list, data_shapiro_results[[var]]$p.value)
+      method_list <- c(method_list, data_shapiro_results[[var]]$method)
+    }
+  }
+
+# Create a dataframe from the lists
+results_df <- data.frame(Var = var_list, 
+                         Statistic = statistic_list, 
+                         p_value = p_value_list, 
+                         method = method_list)
+
+# Add a column indicating if p-value > 0.05
+results_df$normDist <- ifelse(results_df$p_value > 0.05, "NormDist", "non-NormDist")
+
+# Print the modified dataframe
+print(results_df) # we will log transform data as non-normal distributions
+
+```
+  
+  
+### Checking Correlations
+The Following code generates a correlation plot using the libraries `ggcorrplot` and `lares`. Here's a breakdown of what each part of the code does:
+  
+1. Loading Libraries:  `ggcorrplot` package for visualizing correlation matrices and the `lares` package includes functions for computing p-values associated with correlations.  
+  
+2. Computing Correlation Matrix and p-values: `p_mat <- cor_pmat(siteData[5:10])` Computes the matrix of p-values associated with correlations among columns 5 to 10 in the `siteData` dataset.  
+  
+3. Creating Correlation Plot:  
+  * `corr.plot <- ggcorrplot(...)` Generates a correlation plot using `ggcorrplot`. `cor(..., use = 'pairwise.complete.obs')` computes the correlation matrix for columns 5 to 10 in `siteData` using pairwise complete observations.  
+  * `tl.cex` Sets the text label size  
+  * `p.mat = p_mat` includes p-values in the correlation plot  
+  * `hc.order = TRUE` Orders variables hierarchically  
+  * `type = "lower"` specifies to display only the lower triangular part of the plot  
+  * `insig = "blank"` represents insignificant correlations as blank spaces  
+  * `lab = TRUE` Displays variable labels in the plot  
+  * `outline.color = "white"` Sets the outline color of the plot to white
+  * `lab_size` sets the label size  
+  * `ggtheme = ggplot2::theme_minimal` applies the minimal theme from `ggplot2` to the plot  
+  * `colors = c()` allows us to define the color scheme for the plot  
+    
+4. Displaying the Correlation Plot: `corr.plot` This line by itself, without assignment, generates and displays the correlation plot created using `ggcorrplot` with the specified settings.
+
+```{r siteData_corrplot, warning=FALSE}
+p_mat <- cor_pmat(siteData[2:9])
+
+corr.plot <- ggcorrplot(cor(siteData[2:9], use = 'pairwise.complete.obs'), #method = "circle",  
+                        tl.cex = 9, p.mat = p_mat,  hc.order = TRUE, 
+                        type = "lower", insig = "blank", lab = TRUE, 
+                        outline.color = "white",
+                        lab_size = 1, ggtheme = ggplot2::theme_minimal,
+                        colors = c("#837BBF", "#FFFfFf", "#379DB5"))
+                        
+ggsave("_plots/dbRDA_corr.plot.pdf",
+       plot = corr.plot, device = "pdf", width = 5, height = 5)
+
+corr.plot
+```
+  
+  Another way to view the correlations is using the `corr_cross` function. Instead of the heat map this creates a bar plot based on the p-values of the pairwise comparisons between each variable in the data.
+
+```{r siteData_corr.barplot, warning=FALSE}
+corr.barplot <- corr_cross(siteData[2:9], # name of dataset
+           max_pvalue = 0.1, top = 30)
+
+ggsave("_plots/dbRDA_corr.barplot.pdf",
+       plot = corr.barplot, device = "pdf", width = 5, height = 4)
+
+corr.barplot
+
+```
+  
+### Data transformation and analysis  
+  * ***Data Transformation:*** here we manipulate the dataset `waterSamples_emc` by transforming sample counts. It calculates percentages of counts and then performs a logarithmic transformation on the sample counts.  
+  * ***Metadata Handling:*** we then create a data frame `monitored.sd` containing sample metadata from the transformed dataset `waterSamples_emc`. nutrient metadata `siteData` is then joined with the sample data based on sample IDs. Specific variables are then selected and any rows with missing values or NAs are removed.  
+  
+```{r phyloseq data prep}
+# Convert to data frame
+ecoregion.df <- data.frame(phyloseq::tax_table(waterSamples_filtered)) 
+
+#Subset to emc classes (R5)
+ecoregion.emc <- phyloseq::subset_taxa(waterSamples_filtered, R5 %in% emc.classes)
+
+# update dataframe
+ecoregion.df <- data.frame(phyloseq::tax_table(ecoregion.emc))
+
+# removes all `NA's` in taxonomy.
+tax.ecoregion.clean <- data.frame(phyloseq::tax_table(ecoregion.emc)) 
+
+```
+
+```{r nutrient_transformData}
+ecoregion.emc.perc = transform_sample_counts(ecoregion.emc, function(OTU) OTU/sum(OTU)*100)
+ecoregion.emc.log <- transform_sample_counts(ecoregion.emc, function(x) log(x+1))
+
+# Selecting metadata
+monitored.sd <- data.frame(sample_data(ecoregion.emc.log))
+monitored.sd$sampleID <- row.names(monitored.sd)
+
+#convert to character
+monitored.sd$siteID <- as.character(monitored.sd$siteID)
+
+#Join Nutrient metadata and phyloseq sample data. 
+monitored.sd <- left_join(monitored.sd, siteData, by = c("siteID"="siteID"))
+colnames(monitored.sd)
+# Choose your variables (change to my nutrient ones)
+monitored.sd1 <- monitored.sd %>% select(siteID, ecoregion.x, long, latitude, apprx.dist.frm.land, ave.temp) %>% drop_na()
+```
+
+### Data Preprocessing & Basic plotting  
+  * ***Processing:*** Load the caret package to preprocess data `monitored.sd1` by centering, scaling, performing Yeo-Johnson transformation, imputing missing values using bagging, and addressing correlation issues.  
+  * ***Incorporating Processed Data:*** using `subset_samples(ecoregion.siteData, sampleID != "sample.name")` the corrected nutrient data is added into the original phyloseq dataset `ecoregion.emc.log` based on sample IDs.  
+  * ***Ordination Analysis:*** Converts certain columns in the dataset to factors (`ecosystem`, `location`, `point`). Performs a constrained analysis of principal coordinates (CAP) using `ordinate()` to examine the relationships between the dataset `ecoregion.siteData` and various factors.  
+  * ***Basic plot:*** a basic plot is generated to assess results `plot(ecoregion.emc.dbRDA)` of the constrained analysis results.
+
+```{r nutrient_analyseData}
+# transforming data: centers, scales, fills gaps etc...
+monitored.sd2 <- preProcess(monitored.sd1[2:6], method = c("center", "scale", "YeoJohnson", "corr", "bagImpute"))
+monitored.sd3 <- predict(monitored.sd2, monitored.sd1)
+
+# List all siteIDs in the phyloseq object to check they match the siteIDs
+unique(sample_data(ecoregion.emc.log)$siteID)
+
+# adding corrected data back into the phyloseq object
+sample_data(ecoregion.emc.log)$siteID <- sample_names(ecoregion.emc.log)
+
+to_remove <- c("T1", "T2", "T3", "N1", "N2", "N3", "N4", "N5", "N6", "C1", "C2", "C3", "P5", "P6", "P7", "P8", "P9", "P10", "P11")
+
+ecoregion.siteData <- subset_samples(ecoregion.emc.log, !(siteID %in% to_remove))
+
+# Now assign the values from monitored.sd3
+sample_data(ecoregion.siteData)$ecoregion.x <- monitored.sd3$ecoregion.x
+sample_data(ecoregion.siteData)$latitude <- monitored.sd3$latitude
+sample_data(ecoregion.siteData)$apprx.dist.frm.land <- monitored.sd3$apprx.dist.frm.land
+sample_data(ecoregion.siteData)$ave.temp <- monitored.sd3$ave.temp
+
+#convert variables to factors
+sample_data(ecoregion.siteData)$ecoregion.x <- as.factor(sample_data(ecoregion.siteData)$ecoregion.x)
+#sample_data(ecoregion.siteData)$month <- as.factor(sample_data(ecoregion.siteData)$month)
+
+# running ordination
+ecoregion.emc.dbRDA <- ordinate(ecoregion.siteData, formula = ~ ecoregion.x + month + ave.temp + apprx.dist.frm.land + latitude ,"CAP")
+
+# basic plot
+plot(ecoregion.emc.dbRDA)
+
+```
+  
+***Statistical Analysis:***   
+Performs ANOVA tests `anova()` to test the significance of different terms or axes in the constrained analysis (`ecoregion.emc.dbRDA`) with permutation tests.
+
+```{r siteData_significanceTest}
+# testing significance
+anova_results <- anova(ecoregion.emc.dbRDA, by="terms", permu=200)
+write.csv(anova_results, file = "_exports/dbRDA_anova_results.csv", row.names = TRUE)
+anova_results
+```
+  
+* ***Ordination Scores Calculation:*** Calculates ordination scores for different variables ('sp', 'wa', 'lc', 'bp', 'cn') based on a previously performed constrained analysis `ecoregion.emc.dbRDA` and stores them in `scores`.  
+* ***Dataframe Generation:*** Creates a dataframe `site_scores` from the scores of sites obtained in the ordination analysis. Renames the columns of the dataframe to `"dbRDA1"` and `"dbRDA2"` and adds a column with row names.  
+* ***Handling Metadata:*** Extracts sample metadata from the original `ecoregion.siteData` phyloseq object (`sd`). Selects specific columns related to `sampleID`, `ecosystem`, and `location`.  
+* ***Joining Data:*** Joins the site scores `site_scores` with the selected metadata based on the sample ID (`sampleID`).  
+* ***Making Percentages:*** calculates the percentage of variation explained by the first and second axes of a constrained analysis performed earlier (ecoregion.emc.dbRDA) and store these percentages in the axis1.prop and axis2.prop variables. These percentages can provide insight into how much variability is captured by these axes in the ordination analysis.  
+* ***Data Visualisation:*** creates a base ggplot object `p.dbRDA` with a theme. Plots points using `geom_point()` to visualize the  ordination scores (`dbRDA1` and `dbRDA2`) colored by location and shaped by ecosystem. Sets axes labels based on percentages of eigenvalues. Modifies theme settings for legends and color scale.  
+* ***Adding Arrows to Plot:*** Calculates arrow coordinates based on the biplot scores (bp) from the ordination analysis. Renames variables for better labeling in the plot. Defines arrow, label, and arrowhead specifications for the plot. Utilizes `geom_segment()` to plot arrows representing variable loadings onto the existing plot. Uses `geom_text_repel()` from the `ggrepel` library to label the arrows with corresponding variable names.  
+* ***Exporting Plot:*** Saves the generated plot (p.dbRDA1) as a vector graphic file using Cairo (dbRDA.eps).
+```{r siteData_wranglingAndVisualising, warning=FALSE}
+# Ordination Scores
+scores <- scores(ecoregion.emc.dbRDA, display=c("sp","wa","lc","bp","cn"))
+
+# Dataframe generation
+site_scores <- data.frame(scores$sites)
+colnames(site_scores)<-c("dbRDA1","dbRDA2")
+site_scores <- rownames_to_column(site_scores)
+
+# Handling metadata
+sd <- data.frame(sample_data(ecoregion.siteData)) # this is the original phyloseq object
+sd1 <- sd %>% select(sampleID, ecosystem, location)
+sd1$sampleID <- as.character(sd1$sampleID)
+
+# Joining Data
+site_scores_ecoregion.siteData <-  left_join(site_scores, sd1, by = c("rowname" = "sampleID"))
+mapmonitored.ecoregion.siteData <- data.frame(sample_data(ecoregion.siteData))
+site_scores_ecoregion.siteData <-  left_join(site_scores, mapmonitored.ecoregion.siteData, by = c("rowname" = "siteID"))
+
+# Making percentages
+axis1.prop <- eigenvals(ecoregion.emc.dbRDA)[1]/sum(eigenvals(ecoregion.emc.dbRDA))*100
+axis2.prop <- eigenvals(ecoregion.emc.dbRDA)[2]/sum(eigenvals(ecoregion.emc.dbRDA))*100
+
+
+ecoregion_cols <- c("tropical" = "#f0e097", "sub-tropical" = "#cfe5b2", "temperate" = "#88b945", "sub.polar" = "#a9dac9", "polar" = "#89b7e5")
+cols.eco <- colorRampPalette(ecoregion_cols)
+
+
+
+# Data Visualisation
+p.dbRDA <- ggplot() + 
+  theme_bw()
+
+# plotting percents and colors etc...
+p.dbRDA <- p.dbRDA + 
+  geom_point(data = site_scores_ecoregion.siteData, aes(dbRDA1, dbRDA2, col = ecoregion), size = 3) + 
+  ylab(paste0("dbRDA 2 (", sprintf("%.1f", axis2.prop[1]), "%)")) + 
+  xlab(paste0("dbRDA 1 (", sprintf("%.1f", axis1.prop[1]), "%)")) + 
+  theme(legend.text=element_text(size = 16)) +
+  theme(legend.title=element_text(size = 16)) + 
+  scale_color_manual(values = ecoregion_cols, name = "ecoregion")
+
+# Adding Arrows
+arrowmat <- vegan::scores(ecoregion.emc.dbRDA, display = "bp")
+arrowdf <- data.frame(arrowmat)
+arrowdf <- arrowdf[!grepl("^ecoregion\\.x", rownames(arrowdf)), ]
+colnames(arrowdf)<-c("dbRDA1","dbRDA2")
+
+# Changing variable names to make it plot nicer
+arrowdf$labels[rownames(arrowdf) == "latitude"] <- "Latitude"
+arrowdf$labels[rownames(arrowdf) == "ave.temp"] <- "Temperature"
+arrowdf$labels[rownames(arrowdf) == "month"] <- "Sample timing"
+arrowdf$labels[rownames(arrowdf) == "apprx.dist.frm.land"] <- "Dist. from land"
+
+arrow_map <- aes(xend = dbRDA1, yend = dbRDA2, x = 0, y = 0, shape = NULL, color = NULL, label = labels) # Arrow variables
+label_map <- aes(x = 1.3 * dbRDA1, y = 1.3 * dbRDA2, shape = NULL, color = NULL, label = labels) # label variables
+arrowhead = arrow(length = unit(0.02, "npc")) # arrowhead variables
+
+library(ggrepel)
+
+p.dbRDA1 <- p.dbRDA +  # Plotting onto the existing plot
+  geom_segment( mapping = arrow_map, size = .4, data = arrowdf, color = "grey30",arrow = arrowhead) + 
+  geom_text_repel(data = arrowdf, aes(dbRDA1, dbRDA2, label=labels), size = 4, colour = "black", segment.colour = "gray30", max.overlaps = 10)
+
+ggsave("_plots/dbRDA_plot-noSal.pdf",
+       plot = p.dbRDA1, device = "pdf", width = 6, height = 4)
+
+p.dbRDA1
+
+```
+  
