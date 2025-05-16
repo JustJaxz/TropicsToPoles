@@ -34,14 +34,15 @@ library(iCAMP)
 library(tidyr)
 library(ggplot2)
 library(marmap)
+library(here)
 
 #------------------------------------------------------------------------------------------------------------------------------#
 
 ## Data prep
 # NOTE: FIRST RUN DATA SETUP SCRIPT IN RMD FILE 
 
-# Set the working directory to the specified path
-setwd("C:/Documents/R")
+# Check working directory to the specified path
+here()
 
 # Load rarefied alpha diversity data into 'ps' object
 ps <- alpha.waterSamp_pru.rare
