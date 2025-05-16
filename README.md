@@ -69,7 +69,7 @@ __1. Cleaned taxonomy files__
 __2. Site data for dbRDA__
   - File type: `.csv`
   - Description: Here we have the physical data relating to each site used in the distance based redundance analysis (dbRDA).
- ![Example of .csv dbRDA metadata layout](images/site-metadata-example.png)   
+ ![Example of .csv dbRDA metadata layout](images/dbRDA-metadata-example.png)   
 
 
 [↑ Back to top](#contents)  
@@ -82,7 +82,8 @@ __1. Sample data__
 __2. Site data__
   - File type: `.csv`
   - Description: this is a simple .csv file with site co-ordinates only, you can also extract this from your larger data file can create a new dataframe with only the co-ordinate data.
- ![Example of .csv site metadata layout](images/dbRDA-metadata-example.png)   
+
+ ![Example of .csv site metadata layout](images/site-metadata-example.PNG)   
 
 ***
 [↑ Back to top](#contents)  
